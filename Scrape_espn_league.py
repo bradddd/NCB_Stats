@@ -16,8 +16,10 @@ def loginToESPN(leagueID, year):
     br.open(link)
     try:
         form = br.get_form(action="https://r.espn.go.com/espn/memberservices/pc/login")
-        form['username'].value = login.username.value
-        form['password'].value = login.password.value
+        username = input('ESPN Username: \n')
+        password = input('ESPN Password: \n')
+        form['username'].value = username
+        form['password'].value = password
         br.submit_form(form)
         print('\nLogging In\n')
     except:

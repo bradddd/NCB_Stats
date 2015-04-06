@@ -13,7 +13,11 @@ def main():
     NCB.setPitcherRosters(ARP)
     projections = NCB.projectTeams()
     projections.sort('Zscore', ascending=True, inplace=True)
-    print(projections)
+    projections.to_csv('Data/League_Projections.csv')
+    BatterProjections = NCB.getBatterProjections()
+    BatterProjections.to_csv('Data/Hitter_Projections.csv')
+    PitcherProjections = NCB.getPitcherProjections()
+    PitcherProjections.to_csv('Data/Pitcher_Projections.csv')
     with open('NCB.pickle', 'wb') as handle:
         pickle.dump(NCB, handle)
 
