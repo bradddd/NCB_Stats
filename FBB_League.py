@@ -105,8 +105,50 @@ class FBB_League:
     #                                                                           #
     #############################################################################
 
-    def calculateZScores(self):
-        
+    def calculateBatterZScores(self):
+        cols = list(self.batterProjections.columns)
+        if 'Zscore' not in cols[-1]:
+            cols = cols[12:]  # eventually fix to only take the positions used by the league
+            new_cols = []
+            for col in cols:
+                col_zscore = col + '_zscore'
+                self.batterProjections[col_zscore] = (self.batterProjections[col] - self.batterProjections[col].mean()) \
+                                                     / self.batterProjections[col].std(ddof=0)
+                new_cols.append(col_zscore)
+            self.batterProjections['Zscore'] = 0
+            for col in new_cols:
+                print()
+                self.batterProjections['Zscore'] += self.batterProjections[col]
+
+
+    def calcualtePitcherZScores(self):
+        neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
+        cols = list(self.pitcherProjections.columns)
+        if 'Zscore' not in cols[-1]:
+            cols = cols[4:]  # eventually fix to only take the positions used by the league
+            new_cols = []
+            for col in cols:
+                col_zscore = col + '_zscore'
+                self.pitcherProjections[col_zscore] = (self.pitcherProjections[col] - self.pitcherProjections[
+                    col].mean()) \
+                                                      / self.pitcherProjections[col].std(ddof=0)
+                new_cols.append(col_zscore)
+            self.pitcherProjections['Zscore'] = 0
+            for col in new_cols:
+                if col[:col.find('_zscore')] in neg_cats:
+                    self.pitcherProjections['Zscore'] -= self.pitcherProjections[col]
+                else:
+                    self.pitcherProjections['Zscore'] += self.pitcherProjections[col]
+
+
+    def projectTeams(self):
+        pass
+
+    def calculateTeamZscore(self, teamId):
+        pass
+
+    def calculateTeamTotals(self, teamId):
+        pass
 
 
     #############################################################################
