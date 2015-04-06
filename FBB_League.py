@@ -10,7 +10,7 @@ class FBB_League:
         self.leagueID = leagueID
         self.year = year
         # data frame containing
-        # [teamID, teamName, wins, losses, draws]
+        # [teamID, Name, wins, losses, draws]
         self.teams = pd.DataFrame()
         # data frame containing all of the matchups
         # [weekID, gameID, teamID, H/A]
@@ -125,7 +125,7 @@ class FBB_League:
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
         cols = list(self.pitcherProjections.columns)
         if 'Zscore' not in cols[-1]:
-            cols = cols[4:]  # eventually fix to only take the positions used by the league
+            cols = cols[5:]  # eventually fix to only take the positions used by the league
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
@@ -142,10 +142,31 @@ class FBB_League:
 
 
     def projectTeams(self):
-        pass
+        teamIds = list(self.teams['teamId'])
+        teamProjections = pd.DataFrame()
+        teamProjections['teamID'] = self.teams['teamId']
+        teamProjections['Name'] = self.teams['Name']
+        teamProjections['Batter_Zscore'] = 0
+        teamProjections['Pitcher_Zscore'] = 0
+        teamProjections['Zscore'] = 0
+        for t in teamIds:
+            teamBatters = self.batterRosters[self.batterRosters['teamId'] == t]
+            teamPitchers = self.pitcherRosters[self.pitcherRosters['teamId'] == t]
+            B, P = self.calculateTeamZscore(teamBatters, teamPitchers)
+            teamProjections.loc[teamProjections['teamID'] == t, 'Batter_Zscore'] = B
+            teamProjections.loc[teamProjections['teamID'] == t, 'Pitcher_Zscore'] = P
+            teamProjections.loc[teamProjections['teamID'] == t, 'Zscore'] = B + P
+        return teamProjections
 
-    def calculateTeamZscore(self, teamId):
-        pass
+
+    def calculateTeamZscore(self, B, P):
+        BId = list(B['playerId'])
+        PId = list(P['playerId'])
+        batters = self.batterProjections[self.batterProjections['PlayerId'].isin(BId)]
+        pitchers = self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(PId)]
+        # print(batters['Zscore'].sum())
+        #print(pitchers['Zscore'].sum())
+        return batters['Zscore'].sum(), pitchers['Zscore'].sum()
 
     def calculateTeamTotals(self, teamId):
         pass

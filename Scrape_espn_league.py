@@ -245,7 +245,7 @@ def scrapeTeamPlayers(leagueID, year, teams):
         for r in rows:
             d = r.find_all('td')[1]
             if d.find_all('a'):
-                pID = getPlayerID(d)
+                pID = int(getPlayerID(d))
                 teamBatters = teamBatters.append(pd.Series([teamId, pID]), ignore_index=True)
 
 
@@ -257,7 +257,7 @@ def scrapeTeamPlayers(leagueID, year, teams):
         for r in rows:
             d = r.find_all('td')[1]
             if d.find_all('a'):
-                pID = getPlayerID(d)
+                pID = int(getPlayerID(d))
                 teamPitchers = teamPitchers.append(pd.Series([teamId, pID]), ignore_index=True)
 
     teamBatters.columns = ['teamId', 'playerId']
@@ -348,10 +348,11 @@ def scrapeTeamStats(leagueID, year):
     return teamStats
 
 
+"""
 Hitters, Pitchers = scrapePlayerProjections('123478', '2015')
 Hitters.to_csv('Data/Hitters_projections.csv')
 Pitchers.to_csv('Data/Pitchers_projections.csv')
-
+"""
 """
 teams = pd.read_csv('NCB_teams.csv', index_col=0)
 teamBatters, teamPitchers = scrapeTeamPlayers('123478', '2015', teams)
