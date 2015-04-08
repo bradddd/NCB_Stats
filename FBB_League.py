@@ -12,10 +12,10 @@ class FBB_League:
         # data frame containing
         # [teamID, Name, wins, losses, draws]
         self.teams = pd.DataFrame()
-        # data frame containing all of the matchups
+        # data frame containing all of the schedule
         # [weekID, gameID, teamID, H/A]
-        self.matchups = pd.DataFrame()
-        #data frame containing all of te results for each weeks matchups
+        self.schedule = pd.DataFrame()
+        # data frame containing all of te results for each weeks schedule
         #[weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
         # K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties, H/A]
         self.matchUpResults = pd.DataFrame()
@@ -79,13 +79,13 @@ class FBB_League:
 
     def updateELO(self, weekID):
         if weekID not in self.ELO.columns:
-            games = list(self.matchups[(self.matchups['weekID'] == weekID)]['gameID'])
+            games = list(self.schedule[(self.schedule['weekID'] == weekID)]['gameID'])
             for g in games:
                 self.calcELO(g)
             self.ELO[weekID] = pd.Series(list(self.ELO['ELO']))
 
     def calcELO(self, gameID):
-        teamsMatch = self.matchups[(self.matchups[gameID] == gameID)]
+        teamsMatch = self.schedule[(self.schedule[gameID] == gameID)]
         weekID = list(teamsMatch['weekID'])[0]
         teams = list(teamsMatch['teamID'])
         teamA = self.ELO[(self.ELO['teamID'] == teams[0])]['ELO']
@@ -164,13 +164,23 @@ class FBB_League:
         PId = list(P['playerId'])
         batters = self.batterProjections[self.batterProjections['PlayerId'].isin(BId)]
         pitchers = self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(PId)]
-        # print(batters['Zscore'].sum())
+        startingLineup = self.calculateStartingLineup(batters)
         #print(pitchers['Zscore'].sum())
-        return batters['Zscore'].sum(), pitchers['Zscore'].sum()
+        return startingLineup['Zscore'].sum(), pitchers['Zscore'].sum()
 
     def calculateTeamTotals(self, teamId):
         pass
 
+    def calculateStartingLineup(self, B):
+        startingLineup = pd.DataFrame()
+        HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
+                  'Right Field']
+        for pos in HitPos:
+            posHitters = B.loc[B[pos] == 1]
+            if posHitters:
+                posHitters.sort('Zscore', ascending=True, inplace=True)
+
+                startingLineup.append()
 
     #############################################################################
     #                                                                           #
@@ -209,8 +219,8 @@ class FBB_League:
     def getTeams(self):
         return self.teams
 
-    def getMatchups(self):
-        return self.matchups
+    def getSchedule(self):
+        return self.schedule
 
     def getMatchUpResults(self):
         return self.matchupresults
@@ -263,8 +273,8 @@ class FBB_League:
     def setTeams(self, teams):
         self.teams = teams
 
-    def setMatchups(self, matchups):
-        self.matchups = matchups
+    def setSchedule(self, schedule):
+        self.schedule = schedule
 
     def setMatchUpResults(self, matchupresults):
         self.matchupresults = matchupresults
@@ -312,8 +322,8 @@ class FBB_League:
     def updateTeams(self, teams):
         self.teams = teams
 
-    def updateMatchups(self, matchups):
-        self.matchups = matchups
+    def updateschedule(self, schedule):
+        self.schedule = schedule
 
     def updateMatchUpResults(self, matchupresults):
         self.matchupresults = matchupresults

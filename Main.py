@@ -8,16 +8,8 @@ import numpy as np
 def main():
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
-    ARB, ARP = scrapeTeamPlayers('123478', '2015', NCB.getTeams())
-    NCB.setBatterRosters(ARB)
-    NCB.setPitcherRosters(ARP)
-    projections = NCB.projectTeams()
-    projections.sort('Zscore', ascending=True, inplace=True)
-    projections.to_csv('Data/League_Projections.csv')
-    BatterProjections = NCB.getBatterProjections()
-    BatterProjections.to_csv('Data/Hitter_Projections.csv')
-    PitcherProjections = NCB.getPitcherProjections()
-    PitcherProjections.to_csv('Data/Pitcher_Projections.csv')
+    # sched = scrapeLeagueSchedule('123478', '2015')
+    #print(NCB.getSchedule())
     with open('NCB.pickle', 'wb') as handle:
         pickle.dump(NCB, handle)
 
@@ -40,7 +32,24 @@ def main():
 
     with open('NCB.pickle', 'wb') as handle:
         pickle.dump(NCB, handle)
+
+    ARB, ARP = scrapeTeamPlayers('123478', '2015', NCB.getTeams())
+    NCB.setBatterRosters(ARB)
+    NCB.setPitcherRosters(ARP)
+    curHitters, curPitchers = scrapePlayerSeason('123478', '2015')
+    NCB.setHitters(curHitters)
+    NCB.setPitchers(curPitchers)
+    projections = NCB.projectTeams()
+    projections.sort('Zscore', ascending=True, inplace=True)
     """
 
 
+def updateLeague(league):
+    ARB, ARP = scrapeTeamPlayers(league.getId, league.getYear, league.getTeams())
+    league.setBatterRosters(ARB)
+    league.setPitcherRosters(ARP)
+    curHitters, curPitchers = scrapePlayerSeason(league.getId, league.getYear)
+    league.setHitters(curHitters)
+    league.setPitchers(curPitchers)
+    return league
 main()

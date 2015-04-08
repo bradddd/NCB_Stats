@@ -230,6 +230,79 @@ def scrapePlayerProjections(leagueID, year):
     return Hitters, Pitchers
 
 
+def scrapePlayerSeason(leagueID, year):
+    br = loginToESPN(leagueID, year)
+    Hitters = pd.DataFrame()
+    HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
+              'Right Field', 'Designated Hitter']
+    Pitchers = pd.DataFrame()
+    PitchPos = ['Starting Pitcher', 'Relief Pitcher']
+    thead = []
+    index = 0
+    # get batter values
+    br.open('http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
+        year) + '&context=freeagency&view=stats&version=currSeason&startIndex=0&avail=-1&startIndex=' + str(index))
+    table = br.find_all('table', class_='playerTableTable tableBody')[0]
+    rows = table.find_all('tr')
+
+    # get the column headers
+    header = rows[1]
+    data = header.find_all('td')
+    data = [data[0]] + data[8:20]
+    for d in data:
+        txt = d.text.replace('\xa0', '')
+        thead.append(txt.format('ascii'))
+    thead[0] = 'PlayerId'
+    if 'H/AB' in thead:
+        ind = thead.index('H/AB')
+        thead[ind] = 'AB'  #AB stored in ind+1
+        thead.insert(ind, 'H')  #H stored in ind
+    thead.insert(1, 'Team')
+    thead.insert(1, 'Name')
+    thead = thead[0:3] + HitPos + thead[3:]
+    #get player projections
+    while index < 250:
+        br.open('http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
+            year) + '&context=freeagency&view=stats&version=currSeason&avail=-1&startIndex=' + str(index))
+        table = br.find_all('table', class_='playerTableTable tableBody')[0]
+        Hitters = Hitters.append(tableToBatters(table))
+        index += 50
+    Hitters.columns = thead
+    index = 0
+
+
+    #get Pitchers
+    br.open('http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
+        year) + '&context=freeagency&view=stats&version=currSeason&avail=-1&slotCategoryGroup=2&startIndex=' + str(
+        index))
+    table = br.find_all('table', class_='playerTableTable tableBody')[0]
+    rows = table.find_all('tr')
+
+    #get the column headers
+    thead = []
+    header = rows[1]
+    data = header.find_all('td')
+    data = [data[0]] + data[8:24]
+    for d in data:
+        txt = d.text.replace('\xa0', '')
+        thead.append(txt.format('ascii'))
+    thead[0] = 'PlayerId'
+    thead.insert(1, 'Team')
+    thead.insert(1, 'Name')
+    thead = thead[0:3] + PitchPos + thead[3:]
+    #get player projections
+    while index < 250:
+        br.open('http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
+            year) + '&context=freeagency&view=stats&version=currSeason&avail=-1&slotCategoryGroup=2&startIndex=' + str(
+            index))
+        table = br.find_all('table', class_='playerTableTable tableBody')[0]
+        Pitchers = Pitchers.append(tableToPitchers(table))
+        index += 50
+    Pitchers.columns = thead
+
+    return Hitters, Pitchers
+
+
 def scrapeTeamPlayers(leagueID, year, teams):
     br = loginToESPN(leagueID, year)
 
@@ -267,15 +340,45 @@ def scrapeTeamPlayers(leagueID, year, teams):
     return teamBatters, teamPitchers
 
 
-def scrapeMatchups():
+# data frame containing all of te results for each weeks matchups
+#[weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
+# K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties, H/A]
+
+def scrapeMatchupResults(leagueID, year):
     pass
 
 
-def scrapeLeagueSchedule():
-    pass
+# data frame containing all of the matchups
+# [weekID, gameID, teamID, H/A]
+def scrapeLeagueSchedule(leagueId, year):
+    schedule = pd.DataFrame()
+    br = loginToESPN(leagueId, year)
+    weekId = 0
+    gameId = 0
+    while weekId < 22:
+        link = 'http://games.espn.go.com/flb/scoreboard?leagueId=' + str(leagueId) + '&seasonId=' + str(
+            year) + '&matchupPeriodId=' + str(weekId)
+        br.open(link)
+        table = br.find_all('table', class_='tableBody')
+        table = table[0]
+        rows = table.find_all('tr')
+        count = 0
+        for r in rows:
+            data = r.find_all('td', class_='teamName')
+            for d in data:
+                name_row = teamNameToRow(d)
+                homeAway = count % 2
+                schedule = schedule.append(pd.Series([weekId, gameId, name_row[0], homeAway]), ignore_index=True)
+                count += 1
+                if count % 2:
+                    gameId += 1
+        weekId += 1
+    return schedule
 
 
-def scrapeMatchupPlayers():
+# data frame containing player results for each matchup
+#both hitters and pitchers and their catagories
+def scrapeMatchupPlayers(leagueID, year):
     pass
 
 
@@ -348,6 +451,7 @@ def scrapeTeamStats(leagueID, year):
         teamStats = teamStats.append(pd.Series(out), ignore_index=True)
     teamStats.columns = header
     return teamStats
+
 
 
 """
