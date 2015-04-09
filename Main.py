@@ -8,11 +8,13 @@ import numpy as np
 def main():
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
-    # sched = scrapeLeagueSchedule('123478', '2015')
-    #print(NCB.getSchedule())
+    projections = NCB.projectTeams()
+    projections.sort('Zscore', ascending=True, inplace=True)
+    print(projections)
+    """
     with open('NCB.pickle', 'wb') as handle:
         pickle.dump(NCB, handle)
-
+    """
     """
     NCB = FBB_League.FBB_League('123478', '2015')
     hitters = pd.read_csv('Data/Hitters_projections.csv', index_col=0)

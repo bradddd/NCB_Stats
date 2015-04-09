@@ -172,15 +172,78 @@ class FBB_League:
         pass
 
     def calculateStartingLineup(self, B):
+        multipos = pd.DataFrame()
         startingLineup = pd.DataFrame()
         HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
                   'Right Field']
         for pos in HitPos:
             posHitters = B.loc[B[pos] == 1]
-            if posHitters:
+            if not posHitters.empty:
                 posHitters.sort('Zscore', ascending=True, inplace=True)
+                topHit = None
+                while not posHitters.empty:
+                    row = posHitters.head(1)
+                    posHitters.drop(posHitters.index[0], inplace=1)
+                    if self.multiplePositions(row):
+                        multipos = multipos.append(row)
+                    if topHit is None:
 
-                startingLineup.append()
+                        topHit = row
+
+                    elif row.iloc[0]['Zscore'] > topHit.iloc[0]['Zscore']:
+
+                        topHit = row
+
+                startingLineup = startingLineup.append(topHit)
+        while not multipos.empty:
+            row = multipos.head(1)
+            multipos.drop(multipos.index[0], inplace=1)
+            pos = self.findPlayerPos(row)
+            bestPos = None
+            bestDif = 0
+            posStarter = None
+            for p in pos:
+                starter = startingLineup.loc[startingLineup[p] == 1]
+                if not starter.empty:
+                    bestPos = p
+                else:
+                    dif = row['Zscore'] - starter['Zscore']
+                    if dif > bestDif:
+                        bestDif = dif
+                        bestPos = p
+                        posStarter = starter
+            if posStarter:
+                startingLineup = startingLineup[startingLineup['PlayerId'] != posStarter['PlayerId']]
+                startingLineup = startingLineup.append(row)
+                if self.multiplePositions(posStarter):
+                    multipos = multipos.append(posStarter)
+
+        starters = list(startingLineup['PlayerId'])
+        bench = B[~B['PlayerId'].isin(starters)]
+        bench.sort('Zscore', ascending=True, inplace=True)
+        startingLineup = startingLineup.append(bench.head(1))
+        return startingLineup
+
+    def multiplePositions(self, row):
+        HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
+                  'Right Field']
+        count = 0
+        for hp in HitPos:
+            if row.iloc[0][hp] == 1:
+                count += 1
+        if count > 1:
+            return True
+        else:
+            return False
+
+    def findPlayerPos(self, row):
+        HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
+                  'Right Field']
+        out = []
+        for hp in HitPos:
+            if row.iloc[0][hp] == 1:
+                out.append(hp)
+        return out
 
     #############################################################################
     #                                                                           #
