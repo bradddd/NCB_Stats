@@ -152,6 +152,8 @@ class FBB_League:
         for t in teamIds:
             teamBatters = self.batterRosters[self.batterRosters['teamId'] == t]
             teamPitchers = self.pitcherRosters[self.pitcherRosters['teamId'] == t]
+            print('\n')
+            print(teamProjections.loc[teamProjections['teamID'] == t, 'Name'])
             B, P = self.calculateTeamZscore(teamBatters, teamPitchers)
             teamProjections.loc[teamProjections['teamID'] == t, 'Batter_Zscore'] = B
             teamProjections.loc[teamProjections['teamID'] == t, 'Pitcher_Zscore'] = P
@@ -165,6 +167,8 @@ class FBB_League:
         batters = self.batterProjections[self.batterProjections['PlayerId'].isin(BId)]
         pitchers = self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(PId)]
         startingLineup = self.calculateStartingLineup(batters)
+        printSL = startingLineup[['PlayerId', 'Name', 'Zscore']]
+        print(printSL)
         #print(pitchers['Zscore'].sum())
         return startingLineup['Zscore'].sum(), pitchers['Zscore'].sum()
 
@@ -186,7 +190,7 @@ class FBB_League:
                     posHitters.drop(posHitters.index[0], inplace=1)
                     if self.multiplePositions(row):
                         multipos = multipos.append(row)
-                    if topHit is None:
+                    elif topHit is None:
 
                         topHit = row
 
@@ -198,29 +202,30 @@ class FBB_League:
         while not multipos.empty:
             row = multipos.head(1)
             multipos.drop(multipos.index[0], inplace=1)
-            pos = self.findPlayerPos(row)
-            bestPos = None
-            bestDif = 0
-            posStarter = None
-            for p in pos:
-                starter = startingLineup.loc[startingLineup[p] == 1]
-                if not starter.empty:
-                    bestPos = p
-                else:
-                    dif = row['Zscore'] - starter['Zscore']
-                    if dif > bestDif:
-                        bestDif = dif
+            if not row.iloc[0]['PlayerId'] in list(startingLineup['PlayerId']):
+                pos = self.findPlayerPos(row)
+                bestPos = None
+                bestDif = 0
+                posStarter = pd.DataFrame()
+                for p in pos:
+                    starter = startingLineup.loc[startingLineup[p] == 1]
+                    if starter.empty:
                         bestPos = p
-                        posStarter = starter
-            if posStarter:
-                startingLineup = startingLineup[startingLineup['PlayerId'] != posStarter['PlayerId']]
-                startingLineup = startingLineup.append(row)
-                if self.multiplePositions(posStarter):
-                    multipos = multipos.append(posStarter)
+                    else:
+                        dif = row.iloc[0]['Zscore'] - starter.iloc[0]['Zscore']
+                        if dif > bestDif:
+                            bestDif = dif
+                            bestPos = p
+                            posStarter = starter
+                if not posStarter.empty:
+                    startingLineup = startingLineup[startingLineup['PlayerId'] != posStarter.iloc[0]['PlayerId']]
+                    startingLineup = startingLineup.append(row)
+                    if self.multiplePositions(posStarter):
+                        multipos = multipos.append(posStarter)
 
         starters = list(startingLineup['PlayerId'])
         bench = B[~B['PlayerId'].isin(starters)]
-        bench.sort('Zscore', ascending=True, inplace=True)
+        bench.sort('Zscore', ascending=False, inplace=True)
         startingLineup = startingLineup.append(bench.head(1))
         return startingLineup
 
