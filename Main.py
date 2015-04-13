@@ -6,12 +6,28 @@ import pickle
 import numpy as np
 
 def main():
+    NCB = FBB_League.FBB_League('123478', '2015')
+    hitters = pd.read_csv('Data/Hitter_projections.csv', index_col=0)
+    pitchers = pd.read_csv('Data/Pitcher_projections.csv', index_col=0)
+    teams = pd.read_csv('Data/NCB_teams.csv', index_col=0)
+    NCB.setBatterProjections(hitters)
+    NCB.setPitcherProjections(pitchers)
+    NCB.setTeams(teams)
+    ARB, ARP = scrapeTeamPlayers('123478', '2015', teams)
+    NCB.setBatterRosters(ARB)
+    NCB.setPitcherRosters(ARP)
+    with open('NCB.pickle', 'wb') as handle:
+        pickle.dump(NCB, handle)
+    NCB.buildTeams()
+    NCB.projectTeams()
+
+    """
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
     projections = NCB.projectTeams()
     projections.sort('Zscore', ascending=True, inplace=True)
     print(projections)
-    """
+    print('\n\n\n')
     with open('NCB.pickle', 'wb') as handle:
         pickle.dump(NCB, handle)
     """

@@ -2,6 +2,7 @@ __author__ = 'Ryan'
 
 import pandas as pd
 from Scrape_espn_league import *
+from FBB_Team import *
 import pickle
 
 
@@ -57,6 +58,9 @@ class FBB_League:
         # data frame containing the season stats for each team
         #[Name, teamID, ...Scoring Stats...]
         self.seasonStats = pd.DataFrame()
+        # list of team objects
+        self.teamObjs = []
+
     # ############################################################################
     #                                                                           #
     #                                                                           #
@@ -141,114 +145,41 @@ class FBB_League:
                     self.pitcherProjections['Zscore'] += self.pitcherProjections[col]
 
 
-    def projectTeams(self):
+    def buildTeams(self):
         teamIds = list(self.teams['teamId'])
-        teamProjections = pd.DataFrame()
-        teamProjections['teamID'] = self.teams['teamId']
-        teamProjections['Name'] = self.teams['Name']
-        teamProjections['Batter_Zscore'] = 0
-        teamProjections['Pitcher_Zscore'] = 0
-        teamProjections['Zscore'] = 0
         for t in teamIds:
             teamBatters = self.batterRosters[self.batterRosters['teamId'] == t]
             teamPitchers = self.pitcherRosters[self.pitcherRosters['teamId'] == t]
-            print('\n')
-            print(teamProjections.loc[teamProjections['teamID'] == t, 'Name'])
-            B, P = self.calculateTeamZscore(teamBatters, teamPitchers)
-            teamProjections.loc[teamProjections['teamID'] == t, 'Batter_Zscore'] = B
-            teamProjections.loc[teamProjections['teamID'] == t, 'Pitcher_Zscore'] = P
-            teamProjections.loc[teamProjections['teamID'] == t, 'Zscore'] = B + P
-        return teamProjections
+            teamName = self.teams[self.teams['teamId'] == t].iloc[0]['Name']
+            team = FBB_Team(self.leagueID, self.year, t, teamName)
+            team.setBatters(
+                self.batterProjections[self.batterProjections['PlayerId'].isin(list(teamBatters['playerId']))])
+            team.setPitchers(
+                self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(list(teamPitchers['playerId']))])
+            self.teamObjs.append(team)
 
 
-    def calculateTeamZscore(self, B, P):
-        BId = list(B['playerId'])
-        PId = list(P['playerId'])
-        batters = self.batterProjections[self.batterProjections['PlayerId'].isin(BId)]
-        pitchers = self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(PId)]
-        startingLineup = self.calculateStartingLineup(batters)
-        printSL = startingLineup[['PlayerId', 'Name', 'Zscore']]
-        print(printSL)
-        #print(pitchers['Zscore'].sum())
-        return startingLineup['Zscore'].sum(), pitchers['Zscore'].sum()
+    def updateTeams(self):
+        for team in self.teamObjs:
+            t = team.getTeamId()
+            teamBatters = self.batterRosters[self.batterRosters['teamId'] == t]
+            teamPitchers = self.pitcherRosters[self.pitcherRosters['teamId'] == t]
+            team.setBatters(teamBatters)
+            team.setPitchers(teamPitchers)
 
-    def calculateTeamTotals(self, teamId):
-        pass
+    def projectTeams(self):
+        projections = pd.DataFrame()
+        for team in self.teamObjs:
+            team.projectTeam()
+            team.printOptimalLineup()
+            projections = projections.append(pd.Series([team.getTeamId(), team.getTeamName(),
+                                                        team.getTeamBattingScore(), team.getTeamPitchingScore(),
+                                                        team.getTeamScore()]), ignore_index=True)
 
-    def calculateStartingLineup(self, B):
-        multipos = pd.DataFrame()
-        startingLineup = pd.DataFrame()
-        HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
-                  'Right Field']
-        for pos in HitPos:
-            posHitters = B.loc[B[pos] == 1]
-            if not posHitters.empty:
-                posHitters.sort('Zscore', ascending=True, inplace=True)
-                topHit = None
-                while not posHitters.empty:
-                    row = posHitters.head(1)
-                    posHitters.drop(posHitters.index[0], inplace=1)
-                    if self.multiplePositions(row):
-                        multipos = multipos.append(row)
-                    elif topHit is None:
+        projections.columns = ['TeamId', 'TeamName', 'Batting Score', 'Pitching Score', 'Total Score']
+        projections = projections.sort('Total Score', ascending=False)
+        print(projections)
 
-                        topHit = row
-
-                    elif row.iloc[0]['Zscore'] > topHit.iloc[0]['Zscore']:
-
-                        topHit = row
-
-                startingLineup = startingLineup.append(topHit)
-        while not multipos.empty:
-            row = multipos.head(1)
-            multipos.drop(multipos.index[0], inplace=1)
-            if not row.iloc[0]['PlayerId'] in list(startingLineup['PlayerId']):
-                pos = self.findPlayerPos(row)
-                bestPos = None
-                bestDif = 0
-                posStarter = pd.DataFrame()
-                for p in pos:
-                    starter = startingLineup.loc[startingLineup[p] == 1]
-                    if starter.empty:
-                        bestPos = p
-                    else:
-                        dif = row.iloc[0]['Zscore'] - starter.iloc[0]['Zscore']
-                        if dif > bestDif:
-                            bestDif = dif
-                            bestPos = p
-                            posStarter = starter
-                if not posStarter.empty:
-                    startingLineup = startingLineup[startingLineup['PlayerId'] != posStarter.iloc[0]['PlayerId']]
-                    startingLineup = startingLineup.append(row)
-                    if self.multiplePositions(posStarter):
-                        multipos = multipos.append(posStarter)
-
-        starters = list(startingLineup['PlayerId'])
-        bench = B[~B['PlayerId'].isin(starters)]
-        bench.sort('Zscore', ascending=False, inplace=True)
-        startingLineup = startingLineup.append(bench.head(1))
-        return startingLineup
-
-    def multiplePositions(self, row):
-        HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
-                  'Right Field']
-        count = 0
-        for hp in HitPos:
-            if row.iloc[0][hp] == 1:
-                count += 1
-        if count > 1:
-            return True
-        else:
-            return False
-
-    def findPlayerPos(self, row):
-        HitPos = ['Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Left Field', 'Center Field',
-                  'Right Field']
-        out = []
-        for hp in HitPos:
-            if row.iloc[0][hp] == 1:
-                out.append(hp)
-        return out
 
     #############################################################################
     #                                                                           #
@@ -323,6 +254,9 @@ class FBB_League:
     def getSeasonStats(self):
         return self.seasonStats
 
+    def getTeamObjs(self):
+        return self.teamObjs
+
     #############################################################################
     #                                                                           #
     #                                 Setters                                   #
@@ -376,6 +310,9 @@ class FBB_League:
 
     def setSeasonStats(self, seasonStats):
         self.seasonStats = seasonStats
+
+    def setTeamObjs(self, teamObjs):
+        self.teamObjs = teamObjs
 
     """
     #############################################################################
