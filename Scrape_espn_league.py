@@ -1,12 +1,11 @@
 __author__ = 'Ryan'
-import time
 from bs4 import BeautifulSoup
 import pandas as pd
 import requests
 import pickle
 from robobrowser import RoboBrowser
 from espn_login import *
-
+import datetime
 
 espn_header = {'1/0': 'H/AB', '1/0': 'H/AB', }
 
@@ -344,8 +343,73 @@ def scrapeTeamPlayers(leagueID, year, teams):
 #[weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
 # K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties, H/A]
 
-def scrapeMatchupResults(leagueID, year):
-    pass
+def scrapeMatchupResults(leagueId, year):
+    matchups = pd.DataFrame()
+    week = currentWeek()
+    weeks = [i for i in range(1, week + 1)]
+    for w in weeks:
+        matchups.append(scrapeMatchUpWeek(leagueId, year, week))
+    return matchups
+
+
+# data frame containing all of the results for one weeks matchups
+# [weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
+# K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties, H/A]
+def scrapeMatchUpWeek(leagueId, year, weekId):
+    matchupWeek = pd.DataFrame()
+    br = loginToESPN(leagueId, year)
+    link = 'http://games.espn.go.com/flb/scoreboard?leagueId=' + str(leagueId) + '&seasonId=' + str(
+        year) + '&matchupPeriodId=' + str(weekId)
+    br.open(link)
+    table = br.find_all('table', class_='tableBody')
+    table = table[0]
+    rows = table.find_all('tr')
+    head = rows[1].find_all('th')
+    header = [h.text for h in head]
+    while '' in header:
+        header.remove('')
+    header = header[1:-1]
+    header.insert(0, 'Name')
+    header.insert(0, 'teamId')
+    header.append('Wins')
+    header.append('Losses')
+    header.append('Ties')
+    stats = rows[2:]
+
+    for r in stats:
+        data_row = []
+        teamRow = r.find_all('td', class_='teamName')
+        if teamRow:
+            name = teamNameToRow(teamRow[0])
+            data = r.find_all('td')
+            for d in data:
+                if is_number(d.text):
+                    data_row.append(float(d.text))
+            score = scoreToList(data[-1].text)
+            out = name[:2] + data_row + score
+            matchupWeek = matchupWeek.append(pd.Series(out), ignore_index=True)
+    matchupWeek.columns = header
+    return matchupWeek
+
+
+def scoreToList(s):
+    wins = int(s[:s.find('-')])
+    s = s[s.find('-') + 1:]
+    losses = int(s[:s.find('-')])
+    ties = int(s[s.find('-') + 1:])
+    return [wins, losses, ties]
+
+
+# takes current date and find the current week
+def currentWeek():
+    weekIds = pd.read_csv('Data/weekId.csv', index_col=0)
+    now = datetime.datetime.now()
+    weekEnds = list(weekIds['end'])
+    for i, w in enumerate(weekEnds):
+        dt = datetime.datetime.strptime(w, '%m/%d/%y')
+        if now > dt:
+            return i + 1
+    return i + 1
 
 
 # data frame containing all of the matchups
@@ -376,11 +440,13 @@ def scrapeLeagueSchedule(leagueId, year):
     return schedule
 
 
+# return all matchups so far
+
+
 # data frame containing player results for each matchup
 #both hitters and pitchers and their catagories
-def scrapeMatchupPlayers(leagueID, year):
+def scrapeMatchupPlayers(leagueId, year, week):
     pass
-
 
 # returns data frame containing
 # [teamID, teamName, shortName, wins, losses, draws]
@@ -415,6 +481,7 @@ def teamNameToRow(name):
     ID = link.split('&')[1]
     teamID = int(ID[ID.find('=') + 1:])
     teamName = name.text
+    teamName = teamName[:teamName.find(' (')]
 
     return [teamID, teamName, link]
 
@@ -465,3 +532,6 @@ teamBatters, teamPitchers = scrapeTeamPlayers('123478', '2015', teams)
 teamBatters.to_csv('activeRoster_batter.csv')
 teamPitchers.to_csv('activeRoster_pitcher.csv')
 """
+scrapeMatchupPlayers('123478', '2015')
+# week = currentWeek()
+#print(scrapeMatchUpWeek('123478', '2015', week))

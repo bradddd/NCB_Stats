@@ -4,31 +4,52 @@ import pandas as pd
 
 class FBB_Team:
     def __init__(self, leagueId, year, teamId, teamName):
+        # League ID
         self.leagueId = leagueId
+        #League Year
         self.year = year
+        #Team ID
         self.teamId = teamId
+        #Name of Team
         self.teamName = teamName
+        # data frame containing all of the batters and their year to date stats
+        # [playerID, Name, Team, catcher, first base, second base, third base, shortstop,
+        # left field, center field, right field, designated hitter
+        # H, AB, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG]
         self.batters = pd.DataFrame()
+        # data frame containing all of the batters and their projections
+        # [playerID, Name, Team, catcher, first base, second base, third base, shortstop,
+        # left field, center field, right field, designated hitter
+        # H, AB, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG]
+        self.batterProjections = pd.DataFrame()
+        #
         self.pitchers = pd.DataFrame()
+        #
         self.HittingPositions = ['Catcher', 'First Base', 'Second Base', 'Shortstop', 'Third Base', 'Left Field',
                                  'Center Field', 'Right Field']
+        #
         self.OptimalLineup = {}
         for hp in self.HittingPositions:
             self.OptimalLineup[hp] = pd.DataFrame()
         self.OptimalLineup['Utility'] = pd.DataFrame()
+        #
         self.teamScore = 0
+        #
+        self.schedule = pd.DataFrame()
 
+    #
     def projectTeam(self):
         self.fillOptimalLineup()
         self.calcTeamScore()
 
+    #
     def fillOptimalLineup(self):
         sum = 0
         ids = []
         multipos = pd.DataFrame()
         HitPosNeeded = self.HittingPositions.copy()
         for pos in self.HittingPositions:
-            posHitters = self.batters.loc[self.batters[pos] == 1]
+            posHitters = self.batterProjections.loc[self.batterProjections[pos] == 1]
             if not posHitters.empty:
                 posHitters = posHitters.sort('Zscore', ascending=True)
                 topHit = pd.DataFrame()
@@ -72,10 +93,11 @@ class FBB_Team:
         starters = []
         for p in self.HittingPositions:
             starters.append(self.OptimalLineup[p].iloc[0]['PlayerId'])
-        bench = self.batters[~self.batters['PlayerId'].isin(starters)]
+        bench = self.batterProjections[~self.batterProjections['PlayerId'].isin(starters)]
         bench = bench.sort('Zscore', ascending=False)
         self.OptimalLineup['Utility'] = bench.head(1)
 
+    #
     def multiplePositions(self, row):
         count = len(self.findPlayerPos(row))
         if count > 1:
@@ -83,6 +105,7 @@ class FBB_Team:
         else:
             return False
 
+    #
     def findPlayerPos(self, row):
         out = []
         for hp in self.HittingPositions:
@@ -90,15 +113,18 @@ class FBB_Team:
                 out.append(hp)
         return out
 
+    #
     def zscoreStarters(self):
         score = 0
         for k in self.OptimalLineup.keys():
             score += self.OptimalLineup[k].iloc[0]['Zscore']
         return score
 
+    #
     def zscorePitchers(self):
         return self.pitchers['Zscore'].sum()
 
+    #
     def calcTeamScore(self):
         self.teamScore = self.zscoreStarters() + self.zscorePitchers()
 
@@ -110,7 +136,7 @@ class FBB_Team:
     #                                                                           #
     #############################################################################
 
-    def printDict(self, dict):
+    def printOptimalLineup(self):
         print('\n{0}\t{1}'.format(self.teamId, self.teamName))
         for k in self.HittingPositions:
             if not dict[k].empty:
@@ -119,10 +145,6 @@ class FBB_Team:
                 print('%-15.15s: %-25.25s %5.5f' % (k, 'None', 0))
         k = 'Utility'
         print('%-15.15s: %-25.25s %5.5f' % (k, dict[k].iloc[0]['Name'], dict[k].iloc[0]['Zscore']))
-
-
-    def printOptimalLineup(self):
-        self.printDict(self.OptimalLineup)
 
 
     #############################################################################
