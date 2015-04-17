@@ -25,6 +25,8 @@ class FBB_Team:
         #
         self.pitchers = pd.DataFrame()
         #
+        self.pitcherProjections = pd.DataFrame()
+        #
         self.HittingPositions = ['Catcher', 'First Base', 'Second Base', 'Shortstop', 'Third Base', 'Left Field',
                                  'Center Field', 'Right Field']
         #
@@ -122,7 +124,7 @@ class FBB_Team:
 
     #
     def zscorePitchers(self):
-        return self.pitchers['Zscore'].sum()
+        return self.pitcherProjections['Zscore'].sum()
 
     #
     def calcTeamScore(self):
@@ -139,12 +141,14 @@ class FBB_Team:
     def printOptimalLineup(self):
         print('\n{0}\t{1}'.format(self.teamId, self.teamName))
         for k in self.HittingPositions:
-            if not dict[k].empty:
-                print('%-15.15s: %-25.25s %5.5f' % (k, dict[k].iloc[0]['Name'], dict[k].iloc[0]['Zscore']))
+            if not self.OptimalLineup[k].empty:
+                print('%-20.20s: %-25.25s %5.5f' % (
+                k, self.OptimalLineup[k].iloc[0]['Name'], self.OptimalLineup[k].iloc[0]['Zscore']))
             else:
-                print('%-15.15s: %-25.25s %5.5f' % (k, 'None', 0))
+                print('%-20.20s: %-25.25s %5.5f' % (k, 'None', 0))
         k = 'Utility'
-        print('%-15.15s: %-25.25s %5.5f' % (k, dict[k].iloc[0]['Name'], dict[k].iloc[0]['Zscore']))
+        print('%-20.20s: %-25.25s %5.5f' % (
+        k, self.OptimalLineup[k].iloc[0]['Name'], self.OptimalLineup[k].iloc[0]['Zscore']))
 
 
     #############################################################################
@@ -210,6 +214,12 @@ class FBB_Team:
     def getTeamPitchingScore(self):
         return self.zscorePitchers()
 
+    def getBatterProjections(self):
+        return self.battersProjections
+
+    def getPitcherProjections(self):
+        return self.pitcherProjections
+
     #############################################################################
     #                                                                           #
     #                                 Setters                                   #
@@ -231,6 +241,12 @@ class FBB_Team:
     def setBatters(self, batters):
         self.batters = batters
 
+    def setBatterProjections(self, batters):
+        self.batterProjections = batters
+
     def setPitchers(self, pitchers):
         self.pitchers = pitchers
+
+    def setPitcherProjections(self, pitchers):
+        self.pitcherProjections = pitchers
 

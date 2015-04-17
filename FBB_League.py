@@ -18,7 +18,7 @@ class FBB_League:
         self.schedule = pd.DataFrame()
         # data frame containing all of te results for each weeks schedule
         #[weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
-        # K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties, H/A]
+        # K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties]
         self.matchUpResults = pd.DataFrame()
         #data frame containing all of the batters and their year to date stats
         # [playerID, Name, Team, catcher, first base, second base, third base, shortstop,
@@ -78,7 +78,7 @@ class FBB_League:
     def createELO(self):
         teams = list(self.teams['teamID'])
         for t in teams:
-            self.ELO = self.ELO.append(pd.Series([t, 1500.0, 1500.0]), ignore_index=True)
+            self.ELO = self.ELO.append(pd.Series([t, 1400.0, 1400.0]), ignore_index=True)
         self.ELO.columns = ['teamID', 'ELO', 'Init']
 
     def updateELO(self, weekID):
@@ -116,8 +116,11 @@ class FBB_League:
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
-                self.batterProjections[col_zscore] = (self.batterProjections[col] - self.batterProjections[col].mean()) \
-                                                     / self.batterProjections[col].std(ddof=0)
+                if self.batterProjections[col].std(ddof=0) != 0:
+                    self.batterProjections[col_zscore] = (self.batterProjections[col] - self.batterProjections[
+                        col].mean()) / self.batterProjections[col].std(ddof=0)
+                else:
+                    self.batterProjections[col_zscore] = 0
                 new_cols.append(col_zscore)
             self.batterProjections['Zscore'] = 0
             for col in new_cols:
@@ -133,9 +136,11 @@ class FBB_League:
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
-                self.pitcherProjections[col_zscore] = (self.pitcherProjections[col] - self.pitcherProjections[
-                    col].mean()) \
-                                                      / self.pitcherProjections[col].std(ddof=0)
+                if self.pitcherProjections[col].std(ddof=0) != 0:
+                    self.pitcherProjections[col_zscore] = (self.pitcherProjections[col] - self.pitcherProjections[
+                        col].mean()) / self.pitcherProjections[col].std(ddof=0)
+                else:
+                    self.pitcherProjections[col_zscore] = 0
                 new_cols.append(col_zscore)
             self.pitcherProjections['Zscore'] = 0
             for col in new_cols:
@@ -152,9 +157,9 @@ class FBB_League:
             teamPitchers = self.pitcherRosters[self.pitcherRosters['teamId'] == t]
             teamName = self.teams[self.teams['teamId'] == t].iloc[0]['Name']
             team = FBB_Team(self.leagueID, self.year, t, teamName)
-            team.setBatters(
+            team.setBatterProjections(
                 self.batterProjections[self.batterProjections['PlayerId'].isin(list(teamBatters['playerId']))])
-            team.setPitchers(
+            team.setPitcherProjections(
                 self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(list(teamPitchers['playerId']))])
             self.teamObjs.append(team)
 
@@ -187,8 +192,28 @@ class FBB_League:
     #       team of the week, player of the week, next week predictions         #
     #############################################################################
 
-
-
+    def calculateMatchupZScores(self, weekId):
+        weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId]
+        neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP', ]
+        cols = list(weekMatchup.columns)
+        if 'Zscore' not in cols[-1]:
+            cols = cols[4:-2]  # eventually fix to only take the positions used by the league
+            new_cols = []
+            for col in cols:
+                col_zscore = col + '_zscore'
+                if weekMatchup[col].std(ddof=0) != 0:
+                    weekMatchup[col_zscore] = (weekMatchup[col] - weekMatchup[col].mean()) / weekMatchup[col].std(
+                        ddof=0)
+                else:
+                    weekMatchup[col_zscore] = 0
+                new_cols.append(col_zscore)
+            weekMatchup['Zscore'] = 0
+            for col in new_cols:
+                if col[:col.find('_zscore')] in neg_cats:
+                    weekMatchup['Zscore'] -= weekMatchup[col]
+                else:
+                    weekMatchup['Zscore'] += weekMatchup[col]
+        return weekMatchup
 
     #############################################################################
     #                                                                           #
@@ -222,7 +247,7 @@ class FBB_League:
         return self.schedule
 
     def getMatchUpResults(self):
-        return self.matchupresults
+        return self.matchUpResults
 
     def getBatters(self):
         return self.batters
@@ -279,7 +304,7 @@ class FBB_League:
         self.schedule = schedule
 
     def setMatchUpResults(self, matchupresults):
-        self.matchupresults = matchupresults
+        self.matchUpResults = matchupresults
 
     def setBatters(self, batters):
         self.batters = batters
