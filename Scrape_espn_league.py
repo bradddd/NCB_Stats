@@ -1,5 +1,5 @@
 __author__ = 'Ryan'
-from bs4 import BeautifulSoup
+from bs4 import *
 import pandas as pd
 import requests
 import pickle
@@ -51,6 +51,13 @@ class ESPN_Scrape:
         posOut = self.getBatPositions(pos)
         return [pID, name, team] + posOut
 
+    def nameToPlayer(self, d):
+        s = d.text.format('ascii')
+        name = self.getPlayerName(s)
+        s = s[s.find(',') + 2:]
+        pID = self.getPlayerID(d)
+        team = self.getPlayerTeam(s)
+        return [pID, name, team]
 
     def getPlayerName(self, s):
         return s[:s.find(',')]
@@ -58,6 +65,9 @@ class ESPN_Scrape:
 
     def getPlayerID(self, d):
         return d.find_all('a')[0]['playerid']
+
+    def getPlayerTeam(self, s):
+        return s[:s.find('\xa0')]
 
 
     def getBatPositions(self, s):
@@ -468,7 +478,89 @@ class ESPN_Scrape:
     # data frame containing player results for each matchup
     # both hitters and pitchers and their catagories
     def scrapeMatchupPlayers(self, leagueId, year, week):
-        pass
+        matchupBatters = pd.DataFrame()
+        matchupPitchers = pd.DataFrame()
+        link = 'http://games.espn.go.com/flb/scoreboard?leagueId=' + str(leagueId) + '&seasonId=' + str(
+            year) + '&matchupPeriodId=' + str(week)
+        base = 'http://games.espn.go.com'
+        self.loginToESPN(leagueId, year)
+        self.br.open(link)
+        links = self.br.find_all('a')
+        bscores = []
+        for l in links:
+            if l.text == 'Full Box Score':
+                bscores.append(base + l['href'])
+        for bs in bscores:
+            self.br.open(bs)
+            tables = self.br.find_all('table', class_="playerTableTable tableBody")
+            for i, t in enumerate(tables):
+                if i % 2:  # Pitchers
+                    matchupPitchers = matchupPitchers.append(self.scrapeMatchupPitchers(t), ignore_index=True)
+
+                else:  # Batters
+                    matchupBatters = matchupBatters.append(self.scrapeMatchupBatters(t), ignore_index=True)
+
+        matchupBatters['weekId'] = week
+        matchupPitchers['weekId'] = week
+        return matchupBatters, matchupPitchers
+
+    def scrapeMatchupBatters(self, table):
+        batters = pd.DataFrame()
+        rows = table.find_all('tr')
+        head = rows[2].find_all('td')
+        header = [h.text for h in head]
+        header = header[2:]
+        header[0] = 'PlayerId'
+        if 'H/AB' in header:
+            ind = header.index('H/AB')
+            header[ind] = 'AB'  # AB stored in ind+1
+            header.insert(ind, 'H')  # H stored in ind
+        header.insert(1, 'Team')
+        header.insert(1, 'Name')
+        rows = rows[3:-1]
+        for r in rows:
+            data_row = r.find_all('td')
+            data_row = [data_row[0]] + data_row[3:]
+            row_data = []
+            for i, d in enumerate(data_row):
+                if i == 0:
+                    row_data = self.nameToPlayer(d)
+                elif '/' in d.text:
+                    row_data += self.splitHAB(d.text)
+                else:
+                    if self.is_number(d.text):
+                        row_data.append(float(d.text))
+                    else:
+                        row_data.append(0)
+            batters = batters.append(pd.Series(row_data), ignore_index=True)
+        batters.columns = header
+        return batters
+
+    def scrapeMatchupPitchers(self, table):
+        pitchers = pd.DataFrame()
+        rows = table.find_all('tr')
+        head = rows[1].find_all('td')
+        header = [h.text for h in head]
+        header = header[2:]
+        header[0] = 'PlayerId'
+        header.insert(1, 'Team')
+        header.insert(1, 'Name')
+        rows = rows[3:-1]
+        for r in rows:
+            data_row = r.find_all('td')
+            data_row = [data_row[0]] + data_row[3:]
+            row_data = []
+            for i, d in enumerate(data_row):
+                if i == 0:
+                    row_data = self.nameToPlayer(d)
+                else:
+                    if self.is_number(d.text):
+                        row_data.append(float(d.text))
+                    else:
+                        row_data.append(0)
+            pitchers = pitchers.append(pd.Series(row_data), ignore_index=True)
+        pitchers.columns = header
+        return pitchers
 
     # returns data frame containing
     # [teamID, teamName, shortName, wins, losses, draws]
@@ -557,3 +649,6 @@ teamPitchers.to_csv('activeRoster_pitcher.csv')
 #print(scrapeMatchupResults('123478', '2015'))
 # week = currentWeek()
 #print(scrapeMatchUpWeek('123478', '2015', week))
+Scrape = ESPN_Scrape()
+B, P = Scrape.scrapeMatchupPlayers('123478', '2015', 1)
+print(B)
