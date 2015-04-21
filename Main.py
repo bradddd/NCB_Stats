@@ -8,21 +8,8 @@ import numpy as np
 def main():
     Scrape = ESPN_Scrape()
     NCB = FBB_League.FBB_League('123478', '2015')
-    hitters = pd.read_csv('Data/Hitter_projections.csv', index_col=0)
-    pitchers = pd.read_csv('Data/Pitcher_projections.csv', index_col=0)
-    teams = Scrape.scrapeLeagueTeams('123478', '2015')
-    matchups = Scrape.scrapeMatchupResults('123478', '2015')
-    NCB.setBatterProjections(hitters)
-    NCB.setPitcherProjections(pitchers)
-    NCB.setTeams(teams)
-    ARB, ARP = Scrape.scrapeTeamPlayers('123478', '2015', teams)
-    NCB.setBatterRosters(ARB)
-    NCB.setPitcherRosters(ARP)
-    NCB.setMatchUpResults(matchups)
-    matchupres = NCB.calculateMatchupZScores(1)
-    matchupres = matchupres.sort('Zscore')
-    print(matchupres.columns)
-    print(matchupres.loc[:, ['Name', 'Zscore']])
+    NCB = updateLeague(NCB)
+    NCB.analyizeWeek(2)
 
     """
     with open('NCB.pickle', 'rb') as handle:
@@ -67,11 +54,23 @@ def main():
 
 def updateLeague(league):
     Scrape = ESPN_Scrape()
-    ARB, ARP = Scrape.scrapeTeamPlayers(league.getId, league.getYear, league.getTeams())
+    hitters = pd.read_csv('Data/Hitter_projections.csv', index_col=0)
+    pitchers = pd.read_csv('Data/Pitcher_projections.csv', index_col=0)
+    teams = Scrape.scrapeLeagueTeams(league.getLeagueId(), league.getYear())
+    matchups = Scrape.scrapeMatchupResults(league.getLeagueId(), league.getYear())
+    ARB, ARP = Scrape.scrapeTeamPlayers(league.getLeagueId(), league.getYear(), teams)
+    curHitters, curPitchers = Scrape.scrapePlayerSeason(league.getLeagueId(), league.getYear())
+    matchupBatters, matchupPitchers = Scrape.scrapeMatchupPlayers(league.getLeagueId(), league.getYear())
+
+    league.setBatterProjections(hitters)
+    league.setPitcherProjections(pitchers)
+    league.setTeams(teams)
     league.setBatterRosters(ARB)
     league.setPitcherRosters(ARP)
-    curHitters, curPitchers = Scrape.scrapePlayerSeason(league.getId, league.getYear)
-    league.setHitters(curHitters)
+    league.setBatters(curHitters)
     league.setPitchers(curPitchers)
+    league.setMatchUpResults(matchups)
+    league.setMatchUpBatters(matchupBatters)
+    league.setMatchUpPitchers(matchupPitchers)
     return league
 main()

@@ -7,8 +7,8 @@ import pickle
 
 
 class FBB_League:
-    def __init__(self, leagueID, year):
-        self.leagueID = leagueID
+    def __init__(self, leagueId, year):
+        self.leagueId = leagueId
         self.year = year
         # data frame containing
         # [teamID, Name, wins, losses, draws]
@@ -109,45 +109,45 @@ class FBB_League:
     #                                                                           #
     #############################################################################
 
-    def calculateBatterZScores(self):
-        cols = list(self.batterProjections.columns)
+    def calculateBatterZScores(self, battersIn):
+        batters = battersIn.copy()
+        cols = list(batters.columns)
         if 'Zscore' not in cols[-1]:
             cols = cols[12:]  # eventually fix to only take the positions used by the league
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
-                if self.batterProjections[col].std(ddof=0) != 0:
-                    self.batterProjections[col_zscore] = (self.batterProjections[col] - self.batterProjections[
-                        col].mean()) / self.batterProjections[col].std(ddof=0)
+                if batters[col].std(ddof=0) != 0:
+                    batters[col_zscore] = (batters[col] - batters[col].mean()) / batters[col].std(ddof=0)
                 else:
-                    self.batterProjections[col_zscore] = 0
+                    batters[col_zscore] = 0
                 new_cols.append(col_zscore)
-            self.batterProjections['Zscore'] = 0
+            batters['Zscore'] = 0
             for col in new_cols:
-                print()
-                self.batterProjections['Zscore'] += self.batterProjections[col]
+                batters['Zscore'] += batters[col]
+        return batters
 
-
-    def calcualtePitcherZScores(self):
+    def calculatePitcherZScores(self, pitchersIn):
+        pitchers = pitchersIn.copy()
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
-        cols = list(self.pitcherProjections.columns)
+        cols = list(pitchers.columns)
         if 'Zscore' not in cols[-1]:
             cols = cols[5:]  # eventually fix to only take the positions used by the league
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
-                if self.pitcherProjections[col].std(ddof=0) != 0:
-                    self.pitcherProjections[col_zscore] = (self.pitcherProjections[col] - self.pitcherProjections[
-                        col].mean()) / self.pitcherProjections[col].std(ddof=0)
+                if pitchers[col].std(ddof=0) != 0:
+                    pitchers[col_zscore] = (pitchers[col] - pitchers[col].mean()) / pitchers[col].std(ddof=0)
                 else:
-                    self.pitcherProjections[col_zscore] = 0
+                    pitchers[col_zscore] = 0
                 new_cols.append(col_zscore)
-            self.pitcherProjections['Zscore'] = 0
+            pitchers['Zscore'] = 0
             for col in new_cols:
                 if col[:col.find('_zscore')] in neg_cats:
-                    self.pitcherProjections['Zscore'] -= self.pitcherProjections[col]
+                    pitchers['Zscore'] = pitchers['Zscore'] - pitchers[col]
                 else:
-                    self.pitcherProjections['Zscore'] += self.pitcherProjections[col]
+                    pitchers['Zscore'] = pitchers['Zscore'] + pitchers[col]
+        return pitchers
 
 
     def buildTeams(self):
@@ -192,8 +192,29 @@ class FBB_League:
     #       team of the week, player of the week, next week predictions         #
     #############################################################################
 
+    def analyizeWeek(self, weekId):
+        weekMatchup = self.calculateMatchupZScores(weekId)
+        Top10B, Bot10B, Top10P, Bot10P = self.calculatePOTW(weekId)
+        TOTW = weekMatchup.head(1)
+        WOTW = weekMatchup.tail(1)
+
+        print(
+            'Your Team of the Week[/b] is {0} with a score of {1}'.format(TOTW.iloc[0]['Name'], TOTW.iloc[0]['Zscore']))
+        print('Your [b]Worst of the Week[/b] is {0} with a score of {1}'.format(WOTW.iloc[0]['Name'],
+                                                                                WOTW.iloc[0]['Zscore']))
+        print('\nWeek Rankings: ')
+        print(weekMatchup.loc[:, ['Name', 'Zscore']])
+        print('\nTop 10 Batters of the week:')
+        print(Top10B.loc[:, ['Name', 'Zscore']])
+        print('\nBottom 10 Batters of the week:')
+        print(Bot10B.loc[:, ['Name', 'Zscore']])
+        print('\nTop 10 Pitchers of the week:')
+        print(Top10P.loc[:, ['Name', 'Zscore']])
+        print('\nBottom 10 Pitchers of the week:')
+        print(Bot10P.loc[:, ['Name', 'Zscore']])
+
     def calculateMatchupZScores(self, weekId):
-        weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId]
+        weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId].copy()
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP', ]
         cols = list(weekMatchup.columns)
         if 'Zscore' not in cols[-1]:
@@ -210,11 +231,29 @@ class FBB_League:
             weekMatchup['Zscore'] = 0
             for col in new_cols:
                 if col[:col.find('_zscore')] in neg_cats:
-                    weekMatchup['Zscore'] -= weekMatchup[col]
+                    weekMatchup['Zscore'] = weekMatchup['Zscore'] - weekMatchup[col]
                 else:
-                    weekMatchup['Zscore'] += weekMatchup[col]
+                    weekMatchup['Zscore'] = weekMatchup['Zscore'] + weekMatchup[col]
+        weekMatchup = weekMatchup.sort('Zscore', ascending=False)
         return weekMatchup
 
+    def calculatePOTW(self, weekId):
+        weekBatters = self.matchUpBatters[self.matchUpBatters['weekId'] == weekId]
+        weekBattersZ = self.calculateBatterZScores(weekBatters)
+
+        weekPitchers = self.matchUpPitchers[self.matchUpPitchers['weekId'] == weekId]
+        weekPitchersZ = self.calculatePitcherZScores(weekPitchers)
+
+        weekBattersZ = weekBattersZ.sort('Zscore', ascending=False)
+        weekPitchersZ = weekPitchersZ.sort('Zscore', ascending=False)
+
+        Top10B = weekBattersZ.head(10)
+        Bot10B = weekBattersZ.tail(10)
+
+        Top10P = weekPitchersZ.head(10)
+        Bot10P = weekPitchersZ.tail(10)
+
+        return Top10B, Bot10B, Top10P, Bot10P
     #############################################################################
     #                                                                           #
     #                                                                           #
@@ -231,8 +270,8 @@ class FBB_League:
 
 
 
-    def getLeagueID(self):
-        return self.leagueID
+    def getLeagueId(self):
+        return self.leagueId
 
     def getYear(self):
         return self.year
@@ -288,8 +327,8 @@ class FBB_League:
     #                                                                           #
     #############################################################################
 
-    def setLeagueID(self, leagueID):
-        self.leagueID = leagueID
+    def setLeagueId(self, leagueId):
+        self.leagueId = leagueId
 
     def setYear(self, year):
         self.year = year

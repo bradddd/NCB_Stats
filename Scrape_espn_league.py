@@ -30,7 +30,7 @@ class ESPN_Scrape:
                 self.logged_in = True
                 print('\nLogging In\n')
             except:
-                print('\nNo need to login!\n')
+                print('\nLogin FailedS!\n')
 
 
     def is_number(self, s):
@@ -216,7 +216,7 @@ class ESPN_Scrape:
                 'http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
                     year) + '&context=freeagency&view=stats&version=projections&avail=-1&startIndex=' + str(index))
             table = self.br.find_all('table', class_='playerTableTable tableBody')[0]
-            Hitters = Hitters.append(self.tableToBatters(table))
+            Hitters = Hitters.append(self.tableToBatters(table), ignore_index=True)
             index += 50
         Hitters.columns = thead
         index = 0
@@ -248,7 +248,7 @@ class ESPN_Scrape:
                     year) + '&context=freeagency&view=stats&version=projections&avail=-1&slotCategoryGroup=2&startIndex=' + str(
                     index))
             table = self.br.find_all('table', class_='playerTableTable tableBody')[0]
-            Pitchers = Pitchers.append(self.tableToPitchers(table))
+            Pitchers = Pitchers.append(self.tableToPitchers(table), ignore_index=True)
             index += 50
         Pitchers.columns = thead
 
@@ -291,7 +291,7 @@ class ESPN_Scrape:
                 'http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
                     year) + '&context=freeagency&view=stats&version=currSeason&avail=-1&startIndex=' + str(index))
             table = self.br.find_all('table', class_='playerTableTable tableBody')[0]
-            Hitters = Hitters.append(self.tableToBatters(table))
+            Hitters = Hitters.append(self.tableToBatters(table), ignore_index=True)
             index += 50
         Hitters.columns = thead
         index = 0
@@ -323,7 +323,7 @@ class ESPN_Scrape:
                     year) + '&context=freeagency&view=stats&version=currSeason&avail=-1&slotCategoryGroup=2&startIndex=' + str(
                     index))
             table = self.br.find_all('table', class_='playerTableTable tableBody')[0]
-            Pitchers = Pitchers.append(self.tableToPitchers(table))
+            Pitchers = Pitchers.append(self.tableToPitchers(table), ignore_index=True)
             index += 50
         Pitchers.columns = thead
 
@@ -376,7 +376,7 @@ class ESPN_Scrape:
         week = self.currentWeek()
         weeks = [i for i in range(1, week + 1)]
         for w in weeks:
-            matchups = matchups.append(self.scrapeMatchUpWeek(leagueId, year, week))
+            matchups = matchups.append(self.scrapeMatchUpWeek(leagueId, year, w), ignore_index=True)
         return matchups
 
 
@@ -439,8 +439,8 @@ class ESPN_Scrape:
         weekEnds = list(weekIds['end'])
         for i, w in enumerate(weekEnds):
             dt = datetime.datetime.strptime(w, '%m/%d/%y')
-            if now > dt:
-                return i + 1
+            if dt > now:
+                return i
         return i + 1
 
 
@@ -473,11 +473,21 @@ class ESPN_Scrape:
 
 
     # return all matchups so far
+    def scrapeMatchupPlayers(self, leagueId, year):
+        batters = pd.DataFrame()
+        pitchers = pd.DataFrame()
+        week = self.currentWeek()
 
+        weeks = [i for i in range(1, week + 1)]
+        for w in weeks:
+            B, P = self.scrapeMatchupPlayersWeek(leagueId, year, w)
+            batters = batters.append(B, ignore_index=True)
+            pitchers = pitchers.append(P, ignore_index=True)
+        return batters, pitchers
 
     # data frame containing player results for each matchup
     # both hitters and pitchers and their catagories
-    def scrapeMatchupPlayers(self, leagueId, year, week):
+    def scrapeMatchupPlayersWeek(self, leagueId, year, week):
         matchupBatters = pd.DataFrame()
         matchupPitchers = pd.DataFrame()
         link = 'http://games.espn.go.com/flb/scoreboard?leagueId=' + str(leagueId) + '&seasonId=' + str(
@@ -564,14 +574,14 @@ class ESPN_Scrape:
 
     # returns data frame containing
     # [teamID, teamName, shortName, wins, losses, draws]
-    def scrapeLeagueTeams(self, leagueID, year):
-        self.loginToESPN(leagueID, year)
+    def scrapeLeagueTeams(self, leagueId, year):
+        self.loginToESPN(leagueId, year)
 
         # dataframe will have the following columns:
         # [teamID, teamName, wins, losses, draws]
         teams = pd.DataFrame()
 
-        self.br.open('http://games.espn.go.com/flb/standings?leagueId=' + str(leagueID) + '&seasonId=' + str(year))
+        self.br.open('http://games.espn.go.com/flb/standings?leagueId=' + str(leagueId) + '&seasonId=' + str(year))
         tables = self.br.find_all('table', class_='tableBody')
         tables = tables[:-1]
         for t in tables:
@@ -645,10 +655,11 @@ teams = pd.read_csv('NCB_teams.csv', index_col=0)
 teamBatters, teamPitchers = scrapeTeamPlayers('123478', '2015', teams)
 teamBatters.to_csv('activeRoster_batter.csv')
 teamPitchers.to_csv('activeRoster_pitcher.csv')
-"""
+
 #print(scrapeMatchupResults('123478', '2015'))
 # week = currentWeek()
 #print(scrapeMatchUpWeek('123478', '2015', week))
 Scrape = ESPN_Scrape()
 B, P = Scrape.scrapeMatchupPlayers('123478', '2015', 1)
 print(B)
+"""
