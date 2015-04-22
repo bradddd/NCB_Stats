@@ -4,7 +4,8 @@ import pandas as pd
 from Scrape_espn_league import *
 from FBB_Team import *
 import pickle
-
+import scipy
+from scipy import stats as st
 
 class FBB_League:
     def __init__(self, leagueId, year):
@@ -60,6 +61,8 @@ class FBB_League:
         self.seasonStats = pd.DataFrame()
         # list of team objects
         self.teamObjs = []
+        # current weekId
+        self.currentWeekId = 0
 
     # ############################################################################
     #                                                                           #
@@ -192,7 +195,9 @@ class FBB_League:
     #       team of the week, player of the week, next week predictions         #
     #############################################################################
 
-    def analyizeWeek(self, weekId):
+    # print out the players and teams of the week
+    def analyizeLastWeek(self):
+        weekId = self.currentWeekId -1
         weekMatchup = self.calculateMatchupZScores(weekId)
         Top10B, Bot10B, Top10P, Bot10P = self.calculatePOTW(weekId)
         TOTW = weekMatchup.head(1)
@@ -213,6 +218,7 @@ class FBB_League:
         print('\nBottom 10 Pitchers of the week:')
         print(Bot10P.loc[:, ['Name', 'Zscore']])
 
+    #calculate the Zscore for the teams for the week
     def calculateMatchupZScores(self, weekId):
         weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId].copy()
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP', ]
@@ -237,6 +243,7 @@ class FBB_League:
         weekMatchup = weekMatchup.sort('Zscore', ascending=False)
         return weekMatchup
 
+    #calculate the players of the week
     def calculatePOTW(self, weekId):
         weekBatters = self.matchUpBatters[self.matchUpBatters['weekId'] == weekId]
         weekBattersZ = self.calculateBatterZScores(weekBatters)
@@ -254,6 +261,74 @@ class FBB_League:
         Bot10P = weekPitchersZ.tail(10)
 
         return Top10B, Bot10B, Top10P, Bot10P
+
+    #
+    def analyizeThisWeek(self):
+        neg_cats = neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP', ]
+        matchups = self.schedule[self.schedule['weekId'] == self.currentWeekId]
+        mIds = list(set(matchups['gameId']))
+        for m in mIds:
+            probT1WinCats = {}
+            matchup = self.schedule[self.schedule['gameId'] == m]
+            t1 = matchup.iloc[0]['teamId']
+            t1Name = self.teams[self.teams['teamId'] == t1].iloc[0]['Name']
+            t2 = matchup.iloc[1]['teamId']
+            t2Name = self.teams[self.teams['teamId'] == t2].iloc[0]['Name']
+
+            avg1, std1 = self.calculateTeamAverages(t1)
+            avg2, std2 = self.calculateTeamAverages(t2)
+            keys = list(avg1.keys())[4:27]
+            for k in keys:
+                if k in neg_cats:
+                    probT1WinCats[k] = 1 - self.calculateProbabiltyRelationship(avg1[k], avg2[k], std1[k], std2[k])
+                else:
+                    probT1WinCats[k] = self.calculateProbabiltyRelationship(avg1[k], avg2[k], std1[k], std2[k])
+            probT1Win = 0
+            for c in self.possibleWins(22):
+                probT1WinComb = 1
+                for ind, b in enumerate(c):
+                    if b == '1':
+                        probT1WinComb = probT1WinComb * probT1WinCats[keys[ind]]
+                    else:
+                        probT1WinComb = probT1WinComb * (1 - probT1WinCats[keys[ind]])
+                probT1Win += probT1WinComb
+            probT1Win = 100 * probT1Win
+            print('Chance for %s to win: %3.5f ' % (t1Name, probT1Win) + '%')
+            print('Chance for %s to win: %3.5f ' % (t2Name, 100 - probT1Win) + '%')
+
+
+    def calculateProbabiltyRelationship(self, avg1, avg2, std1, std2):
+        muD = avg2 - avg1
+        stdD = std1 ** 2 + std2 ** 2
+        if stdD != 0:
+            Z = (-1 * muD) / scipy.sqrt(stdD)
+            prob = st.norm.cdf(Z)
+        else:
+            prob = 0.5
+        return prob
+
+    def possibleWins(self, num):
+        for i in range(2 ** num):
+            b = bin(i)
+            if b.count('1') > 11:
+                b = b[b.find('b') + 1:]
+                while (len(b) < 22):
+                    b = '0' + b
+                yield b
+
+    def calculateTeamAverages(self, teamId):
+        teamResults = self.matchUpResults[
+            (self.matchUpResults['teamId'] == teamId) & (self.matchUpResults['weekId'] < self.currentWeekId)]
+        trDescribe = teamResults.describe()
+        avg = trDescribe.loc['mean']
+        std = trDescribe.loc['std']
+
+        return avg, std
+
+
+    # print out the projects for each team for the current week
+    def basicWeekProjections(self):
+        pass
     #############################################################################
     #                                                                           #
     #                                                                           #
@@ -321,6 +396,10 @@ class FBB_League:
     def getTeamObjs(self):
         return self.teamObjs
 
+    def getCurrentWeekId(self):
+        return self.currentWeekId
+
+
     #############################################################################
     #                                                                           #
     #                                 Setters                                   #
@@ -378,6 +457,8 @@ class FBB_League:
     def setTeamObjs(self, teamObjs):
         self.teamObjs = teamObjs
 
+    def setCurrentWeekId(self, weekId):
+        self.currentWeekId = weekId
     """
     #############################################################################
     #                                                                           #

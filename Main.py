@@ -6,10 +6,17 @@ import pickle
 import numpy as np
 
 def main():
-    Scrape = ESPN_Scrape()
-    NCB = FBB_League.FBB_League('123478', '2015')
-    NCB = updateLeague(NCB)
-    NCB.analyizeWeek(2)
+    # NCB = FBB_League.FBB_League('123478', '2015')
+    #updateLeague(NCB)
+    #NCB = updateLeague(NCB)
+    #with open('NCB.pickle', 'wb') as handle:
+    #    pickle.dump(NCB, handle)
+    #with open('NCB.pickle', 'rb') as handle:
+    #    NCB = pickle.load(handle)
+
+    with open('NCB.pickle', 'rb') as handle:
+        NCB = pickle.load(handle)
+    NCB.analyizeThisWeek()
 
     """
     with open('NCB.pickle', 'rb') as handle:
@@ -61,7 +68,12 @@ def updateLeague(league):
     ARB, ARP = Scrape.scrapeTeamPlayers(league.getLeagueId(), league.getYear(), teams)
     curHitters, curPitchers = Scrape.scrapePlayerSeason(league.getLeagueId(), league.getYear())
     matchupBatters, matchupPitchers = Scrape.scrapeMatchupPlayers(league.getLeagueId(), league.getYear())
+    schedule = Scrape.scrapeLeagueSchedule(league.getLeagueId(), league.getYear())
 
+    week = Scrape.currentWeek()
+
+    league.setSchedule(schedule)
+    league.setCurrentWeekId(week)
     league.setBatterProjections(hitters)
     league.setPitcherProjections(pitchers)
     league.setTeams(teams)

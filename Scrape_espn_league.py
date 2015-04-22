@@ -440,7 +440,7 @@ class ESPN_Scrape:
         for i, w in enumerate(weekEnds):
             dt = datetime.datetime.strptime(w, '%m/%d/%y')
             if dt > now:
-                return i
+                return i + 1
         return i + 1
 
 
@@ -466,9 +466,10 @@ class ESPN_Scrape:
                     homeAway = count % 2
                     schedule = schedule.append(pd.Series([weekId, gameId, name_row[0], homeAway]), ignore_index=True)
                     count += 1
-                    if count % 2:
+                    if count % 2 == 0:
                         gameId += 1
             weekId += 1
+        schedule.columns = ['weekId', 'gameId', 'teamId', 'H/A']
         return schedule
 
 
@@ -476,10 +477,11 @@ class ESPN_Scrape:
     def scrapeMatchupPlayers(self, leagueId, year):
         batters = pd.DataFrame()
         pitchers = pd.DataFrame()
-        week = self.currentWeek()
+        week = self.currentWeek() - 1
 
         weeks = [i for i in range(1, week + 1)]
         for w in weeks:
+            print(w)
             B, P = self.scrapeMatchupPlayersWeek(leagueId, year, w)
             batters = batters.append(B, ignore_index=True)
             pitchers = pitchers.append(P, ignore_index=True)
@@ -492,6 +494,7 @@ class ESPN_Scrape:
         matchupPitchers = pd.DataFrame()
         link = 'http://games.espn.go.com/flb/scoreboard?leagueId=' + str(leagueId) + '&seasonId=' + str(
             year) + '&matchupPeriodId=' + str(week)
+
         base = 'http://games.espn.go.com'
         self.loginToESPN(leagueId, year)
         self.br.open(link)
@@ -662,4 +665,7 @@ teamPitchers.to_csv('activeRoster_pitcher.csv')
 Scrape = ESPN_Scrape()
 B, P = Scrape.scrapeMatchupPlayers('123478', '2015', 1)
 print(B)
+
+Scrape = ESPN_Scrape()
+print(Scrape.currentWeek())
 """
