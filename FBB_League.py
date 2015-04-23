@@ -8,6 +8,7 @@ import scipy
 from scipy import stats as st
 import datetime
 
+
 class FBB_League:
     def __init__(self, leagueId, year):
         self.leagueId = leagueId
@@ -19,7 +20,7 @@ class FBB_League:
         # [weekID, gameID, teamID, H/A]
         self.schedule = pd.DataFrame()
         # data frame containing all of te results for each weeks schedule
-        #[weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
+        # [weekID, gameID, teamID, H, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG,
         # K, QS, CG, SO, W, L, SV, HD, BAA, ERA, WHIP, K/9, Wins, Losses, Ties]
         self.matchUpResults = pd.DataFrame()
         #data frame containing all of the batters and their year to date stats
@@ -68,7 +69,7 @@ class FBB_League:
         self.leagueScheduleDates = pd.DataFrame()
 
     # ############################################################################
-    #                                                                           #
+    # #
     #                                                                           #
     #                           League Functions                                #
     #                NOTE* No Scraping is done by this class                    #
@@ -200,7 +201,7 @@ class FBB_League:
 
     # print out the players and teams of the week
     def analyizeLastWeek(self):
-        weekId = self.currentWeekId -1
+        weekId = self.currentWeekId - 1
         weekMatchup = self.calculateMatchupZScores(weekId)
         Top10B, Bot10B, Top10P, Bot10P = self.calculatePOTW(weekId)
         TOTW = weekMatchup.head(1)
@@ -319,20 +320,14 @@ class FBB_League:
                     if row.iloc[0][c] < 0:
                         pass
                     else:
-                        print('To win {0}, {1} needs to improve {2} by {3} over the course of the week'.format(c,
-                                                                                                               teamName,
-                                                                                                               c,
-                                                                                                               row.iloc[
-                                                                                                                   0][
-                                                                                                                   c]))
+                        print('To win {0}, {1} needs to improve {2} by {3} over the course of the week'
+                              .format(c, teamName, c, row.iloc[0][c]))
                 else:
                     if row.iloc[0][c] > 0:
                         pass
                     else:
-                        print('To win {0}, {1} needs to improve {2} by {3} over the course of the week'.format(c,
-                                                                                                               teamName,
-                                                                                                               c, -
-                            row.iloc[0][c]))
+                        print('To win {0}, {1} needs to improve {2} by {3} over the course of the week'
+                              .format(c, teamName, c, -row.iloc[0][c]))
             print('\n')
         return differences
 
@@ -386,7 +381,7 @@ class FBB_League:
         now = datetime.datetime.now()
         matchDates = self.leagueScheduleDates[self.leagueScheduleDates['weekId'] == self.currentWeekId]
         startDate = datetime.datetime.strptime(list(matchDates['start'])[0], '%m/%d/%y')
-        return int((now - startDate).days) +1
+        return int((now - startDate).days) + 1
 
 
     def calculateProbabiltyRelationship(self, avg1, avg2, std1, std2):
