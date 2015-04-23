@@ -6,6 +6,7 @@ from FBB_Team import *
 import pickle
 import scipy
 from scipy import stats as st
+import datetime
 
 class FBB_League:
     def __init__(self, leagueId, year):
@@ -63,6 +64,8 @@ class FBB_League:
         self.teamObjs = []
         # current weekId
         self.currentWeekId = 0
+        # dataframe of league week dates
+        self.leagueScheduleDates = pd.DataFrame()
 
     # ############################################################################
     #                                                                           #
@@ -263,17 +266,17 @@ class FBB_League:
         return Top10B, Bot10B, Top10P, Bot10P
 
     #
-    def analyizeThisWeek(self):
-        neg_cats = neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP', ]
+    def predictThisWeek(self):
+        neg_cats = neg_cats = ['L', 'BAA', 'ERA', 'WHIP']
         matchups = self.schedule[self.schedule['weekId'] == self.currentWeekId]
         mIds = list(set(matchups['gameId']))
         for m in mIds:
             probT1WinCats = {}
             matchup = self.schedule[self.schedule['gameId'] == m]
             t1 = matchup.iloc[0]['teamId']
-            t1Name = self.teams[self.teams['teamId'] == t1].iloc[0]['Name']
+            t1Name = self.getTeamName(t1)
             t2 = matchup.iloc[1]['teamId']
-            t2Name = self.teams[self.teams['teamId'] == t2].iloc[0]['Name']
+            t2Name = self.getTeamName(t2)
 
             avg1, std1 = self.calculateTeamAverages(t1)
             avg2, std2 = self.calculateTeamAverages(t2)
@@ -295,6 +298,95 @@ class FBB_League:
             probT1Win = 100 * probT1Win
             print('Chance for %s to win: %3.5f ' % (t1Name, probT1Win) + '%')
             print('Chance for %s to win: %3.5f ' % (t2Name, 100 - probT1Win) + '%')
+
+
+    def analyzeThisWeek(self):
+        neg_cats = ['L', 'BAA', 'ERA', 'WHIP']
+        matchups = self.matchUpResults[self.matchUpResults['weekId'] == self.currentWeekId]
+        matchups = self.calculateWeekRates(matchups)
+        weekProjections = self.calculateRestOfWeekProjections(matchups)
+        mIds = list(set(matchups['gameId']))
+        differences = pd.DataFrame()
+        for m in mIds:
+            matchup = weekProjections[weekProjections['gameId'] == m]
+            differences = differences.append(self.calculateMatchUpDifferences(matchup), ignore_index=True)
+        for id in list(matchups['teamId']):
+            teamName = self.getTeamName(id)
+            print('\n' + teamName)
+            for c in list(matchup.columns)[4:28]:
+                row = differences[differences['teamId'] == id]
+                if c in neg_cats:
+                    if row.iloc[0][c] < 0:
+                        pass
+                    else:
+                        print('To win {0}, {1} needs to improve {2} by {3} over the course of the week'.format(c,
+                                                                                                               teamName,
+                                                                                                               c,
+                                                                                                               row.iloc[
+                                                                                                                   0][
+                                                                                                                   c]))
+                else:
+                    if row.iloc[0][c] > 0:
+                        pass
+                    else:
+                        print('To win {0}, {1} needs to improve {2} by {3} over the course of the week'.format(c,
+                                                                                                               teamName,
+                                                                                                               c, -
+                            row.iloc[0][c]))
+            print('\n')
+        return differences
+
+    def calculateMatchUpDifferences(self, matchup):
+        dif = matchup.copy()
+        cols = list(matchup.columns)[4:28]
+        inds = list(matchup.index)
+        for c in cols:
+            dif.loc[inds[0], c] = matchup.loc[inds[0], c] - matchup.loc[inds[1], c]
+            dif.loc[inds[1], c] = matchup.loc[inds[1], c] - matchup.loc[inds[0], c]
+
+        return dif
+
+    def calculateRestOfWeekProjections(self, matchups):
+        ratios = ['AVG', 'OBP', 'SLG', 'BAA', 'ERA', 'WHIP', 'K/9']
+        daysLeft = self.matchDaysLeft()
+        cols = list(matchups.columns)
+        info = cols[:4]
+        stats = cols[4:28]
+        rates = cols[32:]
+        projections = matchups.loc[:, info + stats].copy()
+        for i, cat in enumerate(stats):
+            if cat not in ratios:
+                projections[cat] = projections[cat] + matchups[rates[i]] * daysLeft
+        return projections
+
+
+    def calculateWeekRates(self, matchups):
+        ratios = ['AVG', 'OBP', 'SLG', 'BAA', 'ERA', 'WHIP', 'K/9']
+        cols = list(matchups.columns)[4:28]
+
+        daysPassed = self.matchDaysFinished()
+        if daysPassed > 0:
+            for col in cols:
+                col_ratio = col + '_ratio'
+                if col in ratios:
+                    matchups[col_ratio] = matchups[col]
+                else:
+                    matchups[col_ratio] = matchups[col] / daysPassed
+        return matchups
+
+
+    def matchDaysLeft(self):
+        now = datetime.datetime.now()
+        matchDates = self.leagueScheduleDates[self.leagueScheduleDates['weekId'] == self.currentWeekId]
+        endDate = datetime.datetime.strptime(list(matchDates['end'])[0], '%m/%d/%y')
+        return int((endDate - now).days) + 1
+
+
+    def matchDaysFinished(self):
+        now = datetime.datetime.now()
+        matchDates = self.leagueScheduleDates[self.leagueScheduleDates['weekId'] == self.currentWeekId]
+        startDate = datetime.datetime.strptime(list(matchDates['start'])[0], '%m/%d/%y')
+        return int((now - startDate).days) +1
 
 
     def calculateProbabiltyRelationship(self, avg1, avg2, std1, std2):
@@ -326,9 +418,6 @@ class FBB_League:
         return avg, std
 
 
-    # print out the projects for each team for the current week
-    def basicWeekProjections(self):
-        pass
     #############################################################################
     #                                                                           #
     #                                                                           #
@@ -336,6 +425,9 @@ class FBB_League:
     #                                                                           #
     #                                                                           #
     #############################################################################
+
+    def getTeamName(self, id):
+        return self.teams[self.teams['teamId'] == id].iloc[0]['Name']
 
     #############################################################################
     #                                                                           #
@@ -399,6 +491,9 @@ class FBB_League:
     def getCurrentWeekId(self):
         return self.currentWeekId
 
+    def getLeagueScheduleDates(self):
+        return self.leagueScheduleDates
+
 
     #############################################################################
     #                                                                           #
@@ -459,6 +554,10 @@ class FBB_League:
 
     def setCurrentWeekId(self, weekId):
         self.currentWeekId = weekId
+
+    def setLeagueScheduleDates(self, leagueScheduleDates):
+        self.leagueScheduleDates = leagueScheduleDates
+
     """
     #############################################################################
     #                                                                           #

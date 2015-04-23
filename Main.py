@@ -16,7 +16,11 @@ def main():
 
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
-    NCB.analyizeThisWeek()
+    NCB = updateLeague(NCB)
+    with open('NCB.pickle', 'wb') as handle:
+        pickle.dump(NCB, handle)
+    NCB.analyzeThisWeek()
+    # NCB.analyizeThisWeek()
 
     """
     with open('NCB.pickle', 'rb') as handle:
@@ -69,6 +73,7 @@ def updateLeague(league):
     curHitters, curPitchers = Scrape.scrapePlayerSeason(league.getLeagueId(), league.getYear())
     matchupBatters, matchupPitchers = Scrape.scrapeMatchupPlayers(league.getLeagueId(), league.getYear())
     schedule = Scrape.scrapeLeagueSchedule(league.getLeagueId(), league.getYear())
+    weekIds = pd.read_csv('Data/weekId.csv', index_col=0)
 
     week = Scrape.currentWeek()
 
@@ -84,5 +89,6 @@ def updateLeague(league):
     league.setMatchUpResults(matchups)
     league.setMatchUpBatters(matchupBatters)
     league.setMatchUpPitchers(matchupPitchers)
+    league.setLeagueScheduleDates(weekIds)
     return league
 main()

@@ -205,12 +205,12 @@ class ESPN_Scrape:
         thead[0] = 'PlayerId'
         if 'H/AB' in thead:
             ind = thead.index('H/AB')
-            thead[ind] = 'AB'  #AB stored in ind+1
-            thead.insert(ind, 'H')  #H stored in ind
+            thead[ind] = 'AB'  # AB stored in ind+1
+            thead.insert(ind, 'H')  # H stored in ind
         thead.insert(1, 'Team')
         thead.insert(1, 'Name')
         thead = thead[0:3] + HitPos + thead[3:]
-        #get player projections
+        # get player projections
         while index < 250:
             self.br.open(
                 'http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
@@ -316,7 +316,7 @@ class ESPN_Scrape:
         thead.insert(1, 'Team')
         thead.insert(1, 'Name')
         thead = thead[0:3] + PitchPos + thead[3:]
-        #get player projections
+        # get player projections
         while index < 250:
             self.br.open(
                 'http://games.espn.go.com/flb/freeagency?leagueId=' + str(leagueID) + '&teamId=1&seasonId=' + str(
@@ -481,7 +481,6 @@ class ESPN_Scrape:
 
         weeks = [i for i in range(1, week + 1)]
         for w in weeks:
-            print(w)
             B, P = self.scrapeMatchupPlayersWeek(leagueId, year, w)
             batters = batters.append(B, ignore_index=True)
             pitchers = pitchers.append(P, ignore_index=True)
@@ -645,7 +644,6 @@ class ESPN_Scrape:
             teamStats = teamStats.append(pd.Series(out), ignore_index=True)
         teamStats.columns = header
         return teamStats
-
 
 
 """
