@@ -16,13 +16,19 @@ def main():
 
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
-    NCB = updateLeague(NCB)
-    with open('NCB.pickle', 'wb') as handle:
-        pickle.dump(NCB, handle)
+    NCB.analyizeLastWeek()
+
+
     NCB.analyzeThisWeek()
-    # NCB.analyizeThisWeek()
 
     """
+    ELO = NCB.getELO()
+    ELO = ELO.sort('ELO', ascending=False)
+    print(ELO.loc[:, ['Name', 'ELO']])
+
+    with open('NCB.pickle', 'wb') as handle:
+        pickle.dump(NCB, handle)
+
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
     projections = NCB.projectTeams()

@@ -52,7 +52,7 @@ class FBB_League:
         #[playerID, Name, FBBteamID, gameID, H, AB, R, 2B, 3B, HR, XBH, RBI, BB, SB, AVG, OBP, SLG]
         self.matchUpPitchers = pd.DataFrame()
         #data frame containing all of the teamIDs and their ELO rating
-        #[teamID, ELO, Init, week 1 ELO, , week 2 ELO, ... ]
+        # [teamID, Name,ELO, Init, week 1 ELO, , week 2 ELO, ... ]
         self.ELO = pd.DataFrame()
         #data frame containing all of the information for how much each roster can hold
         # [Roster Position, Num Starters, Min, Max]
@@ -82,33 +82,82 @@ class FBB_League:
     #                                                                           #
     #############################################################################
 
+    #if there is no ELO table, build the table
     def createELO(self):
-        teams = list(self.teams['teamID'])
-        for t in teams:
-            self.ELO = self.ELO.append(pd.Series([t, 1400.0, 1400.0]), ignore_index=True)
-        self.ELO.columns = ['teamID', 'ELO', 'Init']
+        if self.ELO.empty:
+            teams = list(self.teams['teamId'])
+            for t in teams:
+                self.ELO = self.ELO.append(pd.Series([t, self.getTeamName(t), 1400.0, 1400.0]), ignore_index=True)
+            self.ELO.columns = ['teamId', 'Name', 'ELO', 'Init']
+            for w in range(1, self.currentWeekId):
+                self.updateELOTable(w)
 
-    def updateELO(self, weekID):
-        if weekID not in self.ELO.columns:
-            games = list(self.schedule[(self.schedule['weekID'] == weekID)]['gameID'])
+    # update the ELO for the week if the week has not yet been updated
+    def updateELOTable(self, weekId):
+        if weekId not in self.ELO.columns:
+            games = list(self.matchUpResults[(self.matchUpResults['weekId'] == weekId)]['gameId'])
             for g in games:
                 self.calcELO(g)
-            self.ELO[weekID] = pd.Series(list(self.ELO['ELO']))
+            self.ELO[weekId] = pd.Series(list(self.ELO['ELO']))
+        self.ELO = self.ELO.sort('ELO', ascending=False)
 
-    def calcELO(self, gameID):
-        teamsMatch = self.schedule[(self.schedule[gameID] == gameID)]
-        weekID = list(teamsMatch['weekID'])[0]
-        teams = list(teamsMatch['teamID'])
-        teamA = self.ELO[(self.ELO['teamID'] == teams[0])]['ELO']
-        teamB = self.ELO[(self.ELO['teamID'] == teams[1])]['ELO']
-        teamA_new, teamB_new = self.ELOMath(teamA, teamB)
-        self.ELO.loc[self.ELO.teamID == teams[0], 'ELO'] = teamA_new
-        self.ELO.loc[self.ELO.teamID == teams[1], 'ELO'] = teamB_new
+    # calculate the ELO change for a game results
+    def calcELO(self, gameId):
+        match = self.matchUpResults[(self.matchUpResults['gameId'] == gameId)]
+        teamIds = list(match['teamId'])
+        Ea, Eb = self.calculateExpectedScore(teamIds[0], teamIds[1])
+        Ra = self.getTeamELO(teamIds[0])
+        Rb = self.getTeamELO(teamIds[1])
+        if self.getMatchupResult(gameId) is None:
+            Sa = 0.5
+            Sb = 0.5
+        elif self.getMatchupResult(gameId) == teamIds[0]:
+            Sa = 1
+            Sb = 0
+        elif self.getMatchupResult(gameId) == teamIds[1]:
+            Sa = 0
+            Sb = 1
+        Ra = self.ELOUpdate(Ra, Sa, Ea)
+        Rb = self.ELOUpdate(Rb, Sb, Eb)
+        self.ELO.loc[self.ELO['teamId'] == teamIds[0], 'ELO'] = Ra
+        self.ELO.loc[self.ELO['teamId'] == teamIds[1], 'ELO'] = Rb
 
-    def ELOMath(self, teamA, teamB):
-        A = 1 / (1 + 10 ** ((teamB - teamA) / 400))
-        B = 1 / (1 + 10 ** ((teamA - teamB) / 400))
-        return A, B
+    #ELO Update Rule
+    def ELOUpdate(self, Ra, Sa, Ea):
+        K = 32
+        return Ra + K * (Sa - Ea)
+
+    # Calculate the expected score for a matchup
+    def calculateExpectedScore(self, teamA, teamB):
+        Qa = self.calculateELOQ(teamA)
+        Qb = self.calculateELOQ(teamB)
+        Ea = Qa / (Qa + Qb)
+        Eb = Qb / (Qa + Qb)
+        return Ea, Eb
+
+    # Calculate the ELO Q value
+    def calculateELOQ(self, teamId):
+        return 10 ** (self.getTeamELO(teamId) / 400)
+
+    #Return a team's ELO
+    def getTeamELO(self, teamId):
+        return self.ELO[self.ELO['teamId'] == teamId].iloc[0]['ELO']
+
+    #Return the winner teamId of a matchup
+    #Returns None if the game is a tie
+    def getMatchupResult(self, gameId):
+        match = self.matchUpResults[(self.matchUpResults['gameId'] == gameId)]
+        teamIds = list(match['teamId'])
+        if match[match['teamId'] == teamIds[0]].iloc[0]['Wins'] > match[match['teamId'] == teamIds[1]].iloc[0]['Wins']:
+            return teamIds[0]
+        elif match[match['teamId'] == teamIds[0]].iloc[0]['Wins'] < match[match['teamId'] == teamIds[1]].iloc[0][
+            'Wins']:
+            return teamIds[1]
+        elif match[match['teamId'] == teamIds[0]].iloc[0]['Wins'] == match[match['teamId'] == teamIds[1]].iloc[0][
+            'Wins']:
+            return None
+
+
 
     #############################################################################
     #                                                                           #
@@ -116,6 +165,7 @@ class FBB_League:
     #                                                                           #
     #############################################################################
 
+    #calculate Zscore for all batters
     def calculateBatterZScores(self, battersIn):
         batters = battersIn.copy()
         cols = list(batters.columns)
@@ -134,6 +184,7 @@ class FBB_League:
                 batters['Zscore'] += batters[col]
         return batters
 
+    #calculate zscores for all pitchers
     def calculatePitcherZScores(self, pitchersIn):
         pitchers = pitchersIn.copy()
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
@@ -156,7 +207,7 @@ class FBB_League:
                     pitchers['Zscore'] = pitchers['Zscore'] + pitchers[col]
         return pitchers
 
-
+    #build team objects for optimal lineups
     def buildTeams(self):
         teamIds = list(self.teams['teamId'])
         for t in teamIds:
@@ -170,7 +221,7 @@ class FBB_League:
                 self.pitcherProjections[self.pitcherProjections['PlayerId'].isin(list(teamPitchers['playerId']))])
             self.teamObjs.append(team)
 
-
+    #update teams with current rosters
     def updateTeams(self):
         for team in self.teamObjs:
             t = team.getTeamId()
@@ -179,6 +230,7 @@ class FBB_League:
             team.setBatters(teamBatters)
             team.setPitchers(teamPitchers)
 
+    #project each team based on their starting batters
     def projectTeams(self):
         projections = pd.DataFrame()
         for team in self.teamObjs:
@@ -204,15 +256,22 @@ class FBB_League:
         weekId = self.currentWeekId - 1
         weekMatchup = self.calculateMatchupZScores(weekId)
         Top10B, Bot10B, Top10P, Bot10P = self.calculatePOTW(weekId)
-        TOTW = weekMatchup.head(1)
-        WOTW = weekMatchup.tail(1)
-
+        roto = self.calculateWeekRoto(weekId)
+        TOTW = roto.head(1)
+        WOTW = roto.tail(1)
+        self.updateELOTable(weekId)
         print(
-            'Your Team of the Week[/b] is {0} with a score of {1}'.format(TOTW.iloc[0]['Name'], TOTW.iloc[0]['Zscore']))
+            'Your Team of the Week[/b] is {0} with a score of {1}'.format(TOTW.iloc[0]['Name'],
+                                                                          TOTW.iloc[0]['Total Points']))
         print('Your [b]Worst of the Week[/b] is {0} with a score of {1}'.format(WOTW.iloc[0]['Name'],
-                                                                                WOTW.iloc[0]['Zscore']))
+                                                                                WOTW.iloc[0]['Total Points']))
         print('\nWeek Rankings: ')
+        print('\nZscores: ')
         print(weekMatchup.loc[:, ['Name', 'Zscore']])
+        print('\nRoto: ')
+        print(roto.loc[:, ['Name', 'Total Points']])
+        print('\nELO')
+        print(self.ELO.loc[:, ['Name', 'ELO']])
         print('\nTop 10 Batters of the week:')
         print(Top10B.loc[:, ['Name', 'Zscore']])
         print('\nBottom 10 Batters of the week:')
@@ -222,10 +281,33 @@ class FBB_League:
         print('\nBottom 10 Pitchers of the week:')
         print(Bot10P.loc[:, ['Name', 'Zscore']])
 
+    # calculate roto for last week:
+    def calculateWeekRoto(self, weekId):
+        neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
+        rankings = list(range(12, 0, -1))
+        weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId].copy()
+        cols = list(weekMatchup.columns)
+        if 'Total Points' not in cols[-1]:
+            cols = cols[4:-2]
+            new_cols = []
+            for col in cols:
+                col_roto = col + 'roto'
+                if col not in neg_cats:
+                    weekMatchup = weekMatchup.sort(col, ascending=False)
+                else:
+                    weekMatchup = weekMatchup.sort(col, ascending=True)
+                weekMatchup[col_roto] = rankings
+                new_cols.append(col_roto)
+            weekMatchup['Total Points'] = 0
+            for col in new_cols:
+                weekMatchup['Total Points'] = weekMatchup['Total Points'] + weekMatchup[col]
+        weekMatchup = weekMatchup.sort('Total Points', ascending=False)
+        return weekMatchup
+
     #calculate the Zscore for the teams for the week
     def calculateMatchupZScores(self, weekId):
         weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId].copy()
-        neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP', ]
+        neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
         cols = list(weekMatchup.columns)
         if 'Zscore' not in cols[-1]:
             cols = cols[4:-2]  # eventually fix to only take the positions used by the league
@@ -266,7 +348,8 @@ class FBB_League:
 
         return Top10B, Bot10B, Top10P, Bot10P
 
-    #
+    # predicts the comming weak by calculating P(X>Y) for each category, and then sums the probabilities to get the
+    # total probability of a win vs a loss
     def predictThisWeek(self):
         neg_cats = neg_cats = ['L', 'BAA', 'ERA', 'WHIP']
         matchups = self.schedule[self.schedule['weekId'] == self.currentWeekId]
@@ -300,7 +383,8 @@ class FBB_League:
             print('Chance for %s to win: %3.5f ' % (t1Name, probT1Win) + '%')
             print('Chance for %s to win: %3.5f ' % (t2Name, 100 - probT1Win) + '%')
 
-
+    # analyze the rest of this week
+    #prints out the expected category values needed to make up each category in a week given the predicted outcomes
     def analyzeThisWeek(self):
         neg_cats = ['L', 'BAA', 'ERA', 'WHIP']
         matchups = self.matchUpResults[self.matchUpResults['weekId'] == self.currentWeekId]
@@ -331,6 +415,38 @@ class FBB_League:
             print('\n')
         return differences
 
+    # calculate P(X>Y) given avg, std, and correlation of X and Y
+    def calculateProbabiltyRelationship(self, avg1, avg2, std1, std2):
+        muD = avg2 - avg1
+        stdD = std1 ** 2 + std2 ** 2
+        if stdD != 0:
+            Z = (-1 * muD) / scipy.sqrt(stdD)
+            prob = st.norm.cdf(Z)
+        else:
+            prob = 0.5
+        return prob
+
+    #calculate all possible win possibilities (2**22)
+    def possibleWins(self, num):
+        for i in range(2 ** num):
+            b = bin(i)
+            if b.count('1') > 11:
+                b = b[b.find('b') + 1:]
+                while (len(b) < 22):
+                    b = '0' + b
+                yield b
+
+    #calculate the season average for each catagory for each team
+    def calculateTeamAverages(self, teamId):
+        teamResults = self.matchUpResults[
+            (self.matchUpResults['teamId'] == teamId) & (self.matchUpResults['weekId'] < self.currentWeekId)]
+        trDescribe = teamResults.describe()
+        avg = trDescribe.loc['mean']
+        std = trDescribe.loc['std']
+
+        return avg, std
+
+    #calculate the differences in each catagory between each team and their opponent
     def calculateMatchUpDifferences(self, matchup):
         dif = matchup.copy()
         cols = list(matchup.columns)[4:28]
@@ -341,6 +457,7 @@ class FBB_League:
 
         return dif
 
+    #calculates predicted values for the end of the week
     def calculateRestOfWeekProjections(self, matchups):
         ratios = ['AVG', 'OBP', 'SLG', 'BAA', 'ERA', 'WHIP', 'K/9']
         daysLeft = self.matchDaysLeft()
@@ -354,7 +471,7 @@ class FBB_League:
                 projections[cat] = projections[cat] + matchups[rates[i]] * daysLeft
         return projections
 
-
+    #calculates the rates for the week so far
     def calculateWeekRates(self, matchups):
         ratios = ['AVG', 'OBP', 'SLG', 'BAA', 'ERA', 'WHIP', 'K/9']
         cols = list(matchups.columns)[4:28]
@@ -369,14 +486,14 @@ class FBB_League:
                     matchups[col_ratio] = matchups[col] / daysPassed
         return matchups
 
-
+    #calculate the number of days left in a matchup
     def matchDaysLeft(self):
         now = datetime.datetime.now()
         matchDates = self.leagueScheduleDates[self.leagueScheduleDates['weekId'] == self.currentWeekId]
         endDate = datetime.datetime.strptime(list(matchDates['end'])[0], '%m/%d/%y')
         return int((endDate - now).days) + 1
 
-
+    #calculate the number of days finished in a matchup
     def matchDaysFinished(self):
         now = datetime.datetime.now()
         matchDates = self.leagueScheduleDates[self.leagueScheduleDates['weekId'] == self.currentWeekId]
@@ -384,33 +501,7 @@ class FBB_League:
         return int((now - startDate).days) + 1
 
 
-    def calculateProbabiltyRelationship(self, avg1, avg2, std1, std2):
-        muD = avg2 - avg1
-        stdD = std1 ** 2 + std2 ** 2
-        if stdD != 0:
-            Z = (-1 * muD) / scipy.sqrt(stdD)
-            prob = st.norm.cdf(Z)
-        else:
-            prob = 0.5
-        return prob
 
-    def possibleWins(self, num):
-        for i in range(2 ** num):
-            b = bin(i)
-            if b.count('1') > 11:
-                b = b[b.find('b') + 1:]
-                while (len(b) < 22):
-                    b = '0' + b
-                yield b
-
-    def calculateTeamAverages(self, teamId):
-        teamResults = self.matchUpResults[
-            (self.matchUpResults['teamId'] == teamId) & (self.matchUpResults['weekId'] < self.currentWeekId)]
-        trDescribe = teamResults.describe()
-        avg = trDescribe.loc['mean']
-        std = trDescribe.loc['std']
-
-        return avg, std
 
 
     #############################################################################
@@ -421,6 +512,7 @@ class FBB_League:
     #                                                                           #
     #############################################################################
 
+    #return a team name
     def getTeamName(self, id):
         return self.teams[self.teams['teamId'] == id].iloc[0]['Name']
 
