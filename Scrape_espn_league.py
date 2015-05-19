@@ -510,6 +510,7 @@ class ESPN_Scrape:
                     matchupPitchers = matchupPitchers.append(self.scrapeMatchupPitchers(t), ignore_index=True)
 
                 else:  # Batters
+
                     matchupBatters = matchupBatters.append(self.scrapeMatchupBatters(t), ignore_index=True)
 
         matchupBatters['weekId'] = week
@@ -566,7 +567,9 @@ class ESPN_Scrape:
                 if i == 0:
                     row_data = self.nameToPlayer(d)
                 else:
-                    if self.is_number(d.text):
+                    if d.text == 'INF':
+                        row_data.append(13.5)
+                    elif self.is_number(d.text):
                         row_data.append(float(d.text))
                     else:
                         row_data.append(0)

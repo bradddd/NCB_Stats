@@ -170,7 +170,7 @@ class FBB_League:
         batters = battersIn.copy()
         cols = list(batters.columns)
         if 'Zscore' not in cols[-1]:
-            cols = cols[12:]  # eventually fix to only take the positions used by the league
+            cols = cols[3:15]  # eventually fix to only take the positions used by the league
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
@@ -186,11 +186,12 @@ class FBB_League:
 
     #calculate zscores for all pitchers
     def calculatePitcherZScores(self, pitchersIn):
+
         pitchers = pitchersIn.copy()
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
         cols = list(pitchers.columns)
         if 'Zscore' not in cols[-1]:
-            cols = cols[5:]  # eventually fix to only take the positions used by the league
+            cols = cols[3:-1]  # eventually fix to only take the positions used by the league
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
@@ -288,7 +289,7 @@ class FBB_League:
         weekMatchup = self.matchUpResults[self.matchUpResults['weekId'] == weekId].copy()
         cols = list(weekMatchup.columns)
         if 'Total Points' not in cols[-1]:
-            cols = cols[4:-2]
+            cols = cols[4:-4]
             new_cols = []
             for col in cols:
                 col_roto = col + 'roto'
@@ -310,7 +311,7 @@ class FBB_League:
         neg_cats = ['ER', 'BB', 'L', 'BAA', 'ERA', 'WHIP']
         cols = list(weekMatchup.columns)
         if 'Zscore' not in cols[-1]:
-            cols = cols[4:-2]  # eventually fix to only take the positions used by the league
+            cols = cols[4:-4]  # eventually fix to only take the positions used by the league
             new_cols = []
             for col in cols:
                 col_zscore = col + '_zscore'
@@ -338,6 +339,7 @@ class FBB_League:
         weekPitchersZ = self.calculatePitcherZScores(weekPitchers)
 
         weekBattersZ = weekBattersZ.sort('Zscore', ascending=False)
+        weekBattersZ.to_csv('week7batters')
         weekPitchersZ = weekPitchersZ.sort('Zscore', ascending=False)
 
         Top10B = weekBattersZ.head(10)

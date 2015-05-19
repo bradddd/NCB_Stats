@@ -16,10 +16,15 @@ def main():
 
     with open('NCB.pickle', 'rb') as handle:
         NCB = pickle.load(handle)
+    NCB = updateLeague(NCB)
+    NCB.createELO()
     NCB.analyizeLastWeek()
+    NCB.predictThisWeek()
+    # with open('NCB.pickle', 'wb') as handle:
+    #   pickle.dump(NCB, handle)
 
 
-    NCB.analyzeThisWeek()
+
 
     """
     ELO = NCB.getELO()
